@@ -52,10 +52,17 @@ st.header(f"Patient Report #{report_index}")
 st.text_area("Report Text", report, height=200)
 
 # Image
-st.image(image_url[report_index-1], caption=f"Chest X-ray #{report_index}", use_column_width=True)
+st.image(image_url[report_index-1], caption=f"Chest X-ray #{report_index}", use_container_width=True)
 
 # Symptom scoring
-st.subheader("Symptom Scores (0 = assured absence, 1 = assured presence, 2 = Ambiguous)")
+st.subheader("Symptom Evaluation")
+st.write(
+    "Please review the report and chest X-ray, then assign a score for each listed symptom. "
+    "Use the following coding scheme:\n\n"
+    "- **0** = Assured absence\n"
+    "- **1** = Assured presence\n"
+    "- **2** = Ambiguous / uncertain"
+)
 scores = {}
 for symptom in symptoms:
     selected = st.radio(
