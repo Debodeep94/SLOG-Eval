@@ -98,48 +98,31 @@ improvements = st.text_area(
     key=f"improvements_{report_index}"
 )
 
-# Save button
-if st.button("Save Evaluation"):
-    result = {
-        "report_id": report_index,
-        "report_text": report,
-        "symptom_scores": scores,
-        "annotator": st.session_state.username,
-        "qualitative_feedback": {
-            "clarity": clarity,
-            "difficult_symptoms": difficulty,
-            "confidence": confidence,
-            "improvements": improvements
-        }
-    }
-    os.makedirs("annotations", exist_ok=True)
-    with open(f"annotations/report_{report_index}_{st.session_state.username}.json", "w") as f:
-        json.dump(result, f, indent=2)
-    st.success("✅ Evaluation saved successfully!")
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["Annotate", "Review Results"])
 
+if page == "Annotate":
+    # 👉 put your survey code here
+    pass
 
-st.divider()
-st.header("📊 Review & Download Survey Results")
+elif page == "Review Results":
+    st.header("📊 Review & Download Survey Results")
 
-files = glob.glob("annotations/*.json")
+    files = glob.glob("annotations/*.json")
+    if files:
+        all_records = []
+        for f in files:
+            with open(f) as infile:
+                all_records.append(json.load(infile))
+        df = pd.json_normalize(all_records)
 
-if files:
-    all_records = []
-    for f in files:
-        with open(f) as infile:
-            all_records.append(json.load(infile))
+        st.dataframe(df)
 
-    # Flatten symptom scores for CSV
-    df = pd.json_normalize(all_records)
-
-    st.dataframe(df)
-
-    # Download button for CSV
-    st.download_button(
-        "⬇️ Download all annotations as CSV",
-        df.to_csv(index=False).encode("utf-8"),
-        file_name="survey_results.csv",
-        mime="text/csv"
-    )
-else:
-    st.info("No annotations collected yet.")
+        st.download_button(
+            "⬇️ Download all annotations as CSV",
+            df.to_csv(index=False).encode("utf-8"),
+            file_name="survey_results.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("No annotations found.")
