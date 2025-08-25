@@ -4,12 +4,7 @@ import json
 import os
 
 # === Define users (you can store in secrets.toml for safety) ===
-USERS = {
-    "debodeep": "debo123",
-    "burcu": "burcu123",
-    "stefano": "stefano123",
-    "rajib": "rajib123",
-}
+USERS = st.secrets["credentials"]
 
 # === Login check ===
 if "logged_in" not in st.session_state:
