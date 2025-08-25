@@ -4,7 +4,7 @@ import json
 import os
 import glob
 
-# === Define users (you can store in secrets.toml for safety) ===
+# === Credentials from secrets.toml ===
 USERS = st.secrets["credentials"]
 
 # === Login check ===
@@ -28,10 +28,12 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# === Main app (only shows if logged in) ===
+# === Main navigation ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
+pages = ["Annotate", "Review Results"]
+page = st.sidebar.radio("📂 Navigation", pages)
 
-# Load your data
+# === Data load ===
 data = pd.read_csv('selected_samples.csv')
 reports = data['reports_preds'].tolist()
 image_url = data['paths'].tolist()
@@ -43,68 +45,49 @@ symptoms = [
     'Pneumonia','Pneumothorax','Support Devices'
 ]
 
-# Sidebar
-st.sidebar.title("Report Navigator")
-report_index = st.sidebar.selectbox("Select Report", range(1,31))
-report = reports[report_index-1]
-
-st.header(f"Patient Report #{report_index}")
-st.text_area("Report Text", report, height=200)
-
-# Image
-st.image(image_url[report_index-1], caption=f"Chest X-ray #{report_index}", use_container_width=True)
-
-# Symptom scoring
-st.subheader("Symptom Evaluation")
-st.write(
-    "Please review the report and chest X-ray, then assign a score for each listed symptom. "
-    "Use the following coding scheme:\n\n"
-    "- **0** = Assured absence\n"
-    "- **1** = Assured presence\n"
-    "- **2** = Ambiguous / uncertain"
-)
-scores = {}
-for symptom in symptoms:
-    selected = st.radio(
-        label=symptom,
-        options=[0, 1, 2],
-        horizontal=True,
-        key=f"{symptom}_{report_index}"
-    )
-    scores[symptom] = selected
-
-# === Qualitative Feedback Section ===
-st.subheader("Qualitative Feedback")
-
-clarity = st.selectbox(
-    "How clear and clinically useful did you find this report?",
-    ["Very clear", "Somewhat clear", "Neutral", "Somewhat unclear", "Very unclear"],
-    key=f"clarity_{report_index}"
-)
-
-difficulty = st.text_area(
-    "Which symptoms were most difficult to assess, and why?",
-    key=f"difficulty_{report_index}"
-)
-
-confidence = st.selectbox(
-    "How confident did you feel in your scoring decisions?",
-    ["Very confident", "Somewhat confident", "Neutral", "Somewhat unsure", "Very unsure"],
-    key=f"confidence_{report_index}"
-)
-
-improvements = st.text_area(
-    "What improvements would make the evaluation process faster or easier?",
-    key=f"improvements_{report_index}"
-)
-
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Annotate", "Review Results"])
-
+# === Annotate page ===
 if page == "Annotate":
-    # 👉 put your survey code here
-    pass
+    st.sidebar.title("Report Navigator")
+    report_index = st.sidebar.selectbox("Select Report", range(1,31))
+    report = reports[report_index-1]
 
+    st.header(f"Patient Report #{report_index}")
+    st.text_area("Report Text", report, height=200)
+
+    st.image(image_url[report_index-1], caption=f"Chest X-ray #{report_index}", use_container_width=True)
+
+    st.subheader("Symptom Evaluation")
+    st.write(
+        "Please review the report and chest X-ray, then assign a score for each listed symptom. "
+        "Use the following coding scheme:\n\n"
+        "- **0** = Assured absence\n"
+        "- **1** = Assured presence\n"
+        "- **2** = Ambiguous / uncertain"
+    )
+
+    scores = {}
+    for symptom in symptoms:
+        selected = st.radio(
+            label=symptom,
+            options=[0, 1, 2],
+            horizontal=True,
+            key=f"{symptom}_{report_index}"
+        )
+        scores[symptom] = selected
+
+    if st.button("Save Evaluation"):
+        result = {
+            "report_id": report_index,
+            "report_text": report,
+            "symptom_scores": scores,
+            "annotator": st.session_state.username
+        }
+        os.makedirs("annotations", exist_ok=True)
+        with open(f"annotations/report_{report_index}_{st.session_state.username}.json", "w") as f:
+            json.dump(result, f, indent=2)
+        st.success("✅ Evaluation saved successfully!")
+
+# === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
 
@@ -114,15 +97,20 @@ elif page == "Review Results":
         for f in files:
             with open(f) as infile:
                 all_records.append(json.load(infile))
+
         df = pd.json_normalize(all_records)
+
+        # 🔑 If admin, show all. Otherwise, filter to own responses.
+        if st.session_state.username != "admin":
+            df = df[df["annotator"] == st.session_state.username]
 
         st.dataframe(df)
 
         st.download_button(
-            "⬇️ Download all annotations as CSV",
+            "⬇️ Download your annotations" if st.session_state.username != "admin" else "⬇️ Download all annotations as CSV",
             df.to_csv(index=False).encode("utf-8"),
-            file_name="survey_results.csv",
+            file_name=f"survey_results_{st.session_state.username}.csv" if st.session_state.username != "admin" else "survey_results_all.csv",
             mime="text/csv"
         )
     else:
-        st.info("No annotations found.")
+        st.info("No annotations found yet.")
