@@ -1,0 +1,20 @@
+{
+  "report_id": 1,
+  "report_text": "patient is status post median sternotomy and cabg . mild enlargement of the cardiac silhouette is re- demonstrated . the mediastinal and hilar contours are unchanged . pulmonary vasculature is not engorged . minimal atelectasis is seen in the lung bases without focal consolidation . no pleural effusion or pneumothorax is present . moderate degenerative changes are noted in the thoracic spine .",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  }
+}
