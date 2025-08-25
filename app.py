@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+import glob
 
 # === Define users (you can store in secrets.toml for safety) ===
 USERS = st.secrets["credentials"]
@@ -115,3 +116,30 @@ if st.button("Save Evaluation"):
     with open(f"annotations/report_{report_index}_{st.session_state.username}.json", "w") as f:
         json.dump(result, f, indent=2)
     st.success("✅ Evaluation saved successfully!")
+
+
+st.divider()
+st.header("📊 Review & Download Survey Results")
+
+files = glob.glob("annotations/*.json")
+
+if files:
+    all_records = []
+    for f in files:
+        with open(f) as infile:
+            all_records.append(json.load(infile))
+
+    # Flatten symptom scores for CSV
+    df = pd.json_normalize(all_records)
+
+    st.dataframe(df)
+
+    # Download button for CSV
+    st.download_button(
+        "⬇️ Download all annotations as CSV",
+        df.to_csv(index=False).encode("utf-8"),
+        file_name="survey_results.csv",
+        mime="text/csv"
+    )
+else:
+    st.info("No annotations collected yet.")
