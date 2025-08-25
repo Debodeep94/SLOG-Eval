@@ -20,7 +20,6 @@ def login():
             st.session_state.username = username
             st.success("✅ Logged in successfully!")
             st.rerun()
-
         else:
             st.error("❌ Invalid username or password")
 
@@ -73,13 +72,44 @@ for symptom in symptoms:
     )
     scores[symptom] = selected
 
+# === Qualitative Feedback Section ===
+st.subheader("Qualitative Feedback")
+
+clarity = st.selectbox(
+    "How clear and clinically useful did you find this report?",
+    ["Very clear", "Somewhat clear", "Neutral", "Somewhat unclear", "Very unclear"],
+    key=f"clarity_{report_index}"
+)
+
+difficulty = st.text_area(
+    "Which symptoms were most difficult to assess, and why?",
+    key=f"difficulty_{report_index}"
+)
+
+confidence = st.selectbox(
+    "How confident did you feel in your scoring decisions?",
+    ["Very confident", "Somewhat confident", "Neutral", "Somewhat unsure", "Very unsure"],
+    key=f"confidence_{report_index}"
+)
+
+improvements = st.text_area(
+    "What improvements would make the evaluation process faster or easier?",
+    key=f"improvements_{report_index}"
+)
+
 # Save button
 if st.button("Save Evaluation"):
     result = {
         "report_id": report_index,
         "report_text": report,
         "symptom_scores": scores,
-        "annotator": st.session_state.username
+        "annotator": st.session_state.username,
+        "qualitative_feedback": {
+            "clarity": clarity,
+            "difficult_symptoms": difficulty,
+            "confidence": confidence,
+            "improvements": improvements
+        }
     }
     os.makedirs("annotations", exist_ok=True)
     with open(f"annotations/report_{report_index}_{st.session_state.username}.json", "w") as f:
