@@ -78,10 +78,10 @@ if page == "Annotate":
 
     # Qualitative survey
     st.subheader("Qualitative Feedback")
-    q1 = st.text_area("📝 How confident do you feel about your overall evaluation of this report?")
-    q2 = st.text_area("🤔 Were there any symptoms that were particularly difficult to score? Why?")
-    q3 = st.text_area("💡 Do you think additional information (like clinical history) would help?")
-    q4 = st.text_area("📌 Any other feedback or observations?")
+    q1 = st.text_area("How confident do you feel about your overall evaluation of this report?")
+    q2 = st.text_area("Were there any symptoms that were particularly difficult to score? Why?")
+    q3 = st.text_area("Do you think additional information (like clinical history) would help?")
+    q4 = st.text_area("Any other feedback or observations?")
 
     if st.button("Save Evaluation"):
         result = {
