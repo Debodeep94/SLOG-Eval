@@ -112,7 +112,21 @@ elif page == "Review Results":
             with open(f) as infile:
                 all_records.append(json.load(infile))
 
+        # Flatten JSON including timings
         df = pd.json_normalize(all_records)
+
+        # Extract elapsed times into new columns
+        for record in all_records:
+            rid = record["report_id"]
+            annotator = record["annotator"]
+            for key, val in record.get("timings", {}).items():
+                col_name = f"{key}_elapsed"
+                if "elapsed" in val and val["elapsed"] is not None:
+                    df.loc[
+                        (df["report_id"] == rid) & (df["annotator"] == annotator),
+                        col_name
+                    ] = val["elapsed"]
+
         st.dataframe(df)
 
         st.download_button(
