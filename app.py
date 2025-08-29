@@ -113,23 +113,29 @@ elif page == "Review Results":
             with open(f) as infile:
                 all_records.append(json.load(infile))
 
-        # Flatten JSON (everything except nested dicts)
-        df = pd.json_normalize(all_records)
-
-        # Extract only overall elapsed times for Q1–Q4
+        # Build long-format dataframe: each row = one question
+        rows = []
         for record in all_records:
             rid = record["report_id"]
             annotator = record["annotator"]
+            qualitative = record.get("qualitative", {})
             timings = record.get("timings", {})
-            for q in ["q1", "q2", "q3", "q4"]:
-                col_name = f"{q}_elapsed"
-                elapsed = timings.get(q, {}).get("elapsed")
-                if elapsed is not None:
-                    df.loc[
-                        (df["report_id"] == rid) & (df["annotator"] == annotator),
-                        col_name
-                    ] = round(elapsed, 2)  # keep only 2 decimals
 
+            for q in ["q1", "q2", "q3", "q4"]:
+                rows.append({
+                    "report_id": rid,
+                    "annotator": annotator,
+                    "question": q,
+                    "answer": qualitative.get({
+                        "q1": "confidence",
+                        "q2": "difficult_symptoms",
+                        "q3": "extra_info_needed",
+                        "q4": "other_feedback"
+                    }[q], ""),
+                    "timer": round(timings.get(q, {}).get("elapsed", 0), 2)
+                })
+
+        df = pd.DataFrame(rows)
         st.dataframe(df)
 
         st.download_button(
