@@ -49,6 +49,7 @@ symptoms = [
 
 # === Annotate page ===
 if page == "Annotate":
+    start=time.time()
     st.sidebar.title("Report Navigator")
     report_index = st.sidebar.selectbox("Select Report", range(1,31))
     report = reports[report_index-1]
@@ -113,22 +114,20 @@ elif page == "Review Results":
             with open(f) as infile:
                 all_records.append(json.load(infile))
 
-        # Flatten JSON (everything except nested dicts)
+        # Flatten JSON including timings
         df = pd.json_normalize(all_records)
 
-        # Extract only overall elapsed times for Q1–Q4
+        # Extract elapsed times into new columns
         for record in all_records:
             rid = record["report_id"]
             annotator = record["annotator"]
-            timings = record.get("timings", {})
-            for q in ["q1", "q2", "q3", "q4"]:
-                col_name = f"{q}_elapsed"
-                elapsed = timings.get(q, {}).get("elapsed")
-                if elapsed is not None:
+            for key, val in record.get("timings", {}).items():
+                col_name = f"{key}_elapsed"
+                if "elapsed" in val and val["elapsed"] is not None:
                     df.loc[
                         (df["report_id"] == rid) & (df["annotator"] == annotator),
                         col_name
-                    ] = round(elapsed, 2)  # keep only 2 decimals
+                    ] = val["elapsed"]
 
         st.dataframe(df)
 
