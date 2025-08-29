@@ -45,6 +45,7 @@ data = st.session_state.data
 reports = data['reports_preds'].tolist()
 image_url = data['paths'].tolist()
 sources = data['source_file'].tolist()
+study_ids = data['study_id'].tolist()   # << added
 
 symptoms = [
     'Atelectasis','Cardiomegaly','Consolidation','Edema',
@@ -64,6 +65,7 @@ if page == "Annotate":
     report_index = st.sidebar.selectbox("Select Report", range(1, len(reports)+1))
     report = reports[report_index-1]
     source_file = sources[report_index-1]
+    study_id = study_ids[report_index-1]
 
     st.header(f"Patient Report #{report_index}")
     st.text_area("Report Text", report, height=200)
@@ -92,6 +94,7 @@ if page == "Annotate":
     if st.button("Save Evaluation"):
         result = {
             "report_id": report_index,
+            "study_id": study_id,   # << added
             "report_text": report,
             "symptom_scores": scores,
             "annotator": st.session_state.username,
