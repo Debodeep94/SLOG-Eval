@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+import time
 import glob
 
 # === Credentials from secrets.toml ===
@@ -112,20 +113,22 @@ elif page == "Review Results":
             with open(f) as infile:
                 all_records.append(json.load(infile))
 
-        # Flatten JSON including timings
+        # Flatten JSON (everything except nested dicts)
         df = pd.json_normalize(all_records)
 
-        # Extract elapsed times into new columns
+        # Extract only overall elapsed times for Q1–Q4
         for record in all_records:
             rid = record["report_id"]
             annotator = record["annotator"]
-            for key, val in record.get("timings", {}).items():
-                col_name = f"{key}_elapsed"
-                if "elapsed" in val and val["elapsed"] is not None:
+            timings = record.get("timings", {})
+            for q in ["q1", "q2", "q3", "q4"]:
+                col_name = f"{q}_elapsed"
+                elapsed = timings.get(q, {}).get("elapsed")
+                if elapsed is not None:
                     df.loc[
                         (df["report_id"] == rid) & (df["annotator"] == annotator),
                         col_name
-                    ] = val["elapsed"]
+                    ] = round(elapsed, 2)  # keep only 2 decimals
 
         st.dataframe(df)
 
