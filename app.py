@@ -76,24 +76,24 @@ if page == "Annotate":
         )
         scores[symptom] = selected
 
-    # Qualitative survey
-    st.subheader("Qualitative Feedback")
-    q1 = st.text_area("How confident do you feel about your overall evaluation of this report?")
-    q2 = st.text_area("Were there any symptoms that were particularly difficult to score? Why?")
-    q3 = st.text_area("Do you think additional information (like clinical history) would help?")
-    q4 = st.text_area("Any other feedback or observations?")
+    # # Qualitative survey
+    # st.subheader("Qualitative Feedback")
+    # q1 = st.text_area("How confident do you feel about your overall evaluation of this report?")
+    # q2 = st.text_area("Were there any symptoms that were particularly difficult to score? Why?")
+    # q3 = st.text_area("Do you think additional information (like clinical history) would help?")
+    # q4 = st.text_area("Any other feedback or observations?")
 
     if st.button("Save Evaluation"):
         result = {
             "report_id": report_index,
             "report_text": report,
             "symptom_scores": scores,
-            "qualitative": {
-                "confidence": q1,
-                "difficult_symptoms": q2,
-                "extra_info_needed": q3,
-                "other_feedback": q4,
-            },
+            # "qualitative": {
+            #     "confidence": q1,
+            #     "difficult_symptoms": q2,
+            #     "extra_info_needed": q3,
+            #     "other_feedback": q4,
+            # },
             "annotator": st.session_state.username
         }
         os.makedirs("annotations", exist_ok=True)
