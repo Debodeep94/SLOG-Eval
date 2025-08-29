@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-import time
 import glob
 
 # === Credentials from secrets.toml ===
@@ -29,16 +28,23 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# === Main navigation ===
-st.sidebar.success(f"Logged in as {st.session_state.username}")
+# === Load and shuffle combined dataset (once per session) ===
+if "data" not in st.session_state:
+    df1 = pd.read_csv("selected_samples.csv")
+    df1["source_file"] = "selected_samples.csv"
 
-pages = ["Annotate", "Review Results"]
-page = st.sidebar.radio("📂 Navigation", pages)
+    df2 = pd.read_csv("selected_samples00.csv")
+    df2["source_file"] = "selected_samples00.csv"
 
-# === Data load ===
-data = pd.read_csv('selected_samples.csv')
+    combined = pd.concat([df1, df2], ignore_index=True)
+    combined = combined.sample(frac=1, random_state=None).reset_index(drop=True)  # shuffle
+
+    st.session_state.data = combined
+
+data = st.session_state.data
 reports = data['reports_preds'].tolist()
 image_url = data['paths'].tolist()
+sources = data['source_file'].tolist()
 
 symptoms = [
     'Atelectasis','Cardiomegaly','Consolidation','Edema',
@@ -47,12 +53,17 @@ symptoms = [
     'Pneumonia','Pneumothorax','Support Devices'
 ]
 
+# === Main navigation ===
+st.sidebar.success(f"Logged in as {st.session_state.username}")
+pages = ["Annotate", "Review Results"]
+page = st.sidebar.radio("📂 Navigation", pages)
+
 # === Annotate page ===
 if page == "Annotate":
-    start=time.time()
     st.sidebar.title("Report Navigator")
-    report_index = st.sidebar.selectbox("Select Report", range(1,31))
+    report_index = st.sidebar.selectbox("Select Report", range(1, len(reports)+1))
     report = reports[report_index-1]
+    source_file = sources[report_index-1]
 
     st.header(f"Patient Report #{report_index}")
     st.text_area("Report Text", report, height=200)
@@ -78,28 +89,17 @@ if page == "Annotate":
         )
         scores[symptom] = selected
 
-    # # Qualitative survey
-    # st.subheader("Qualitative Feedback")
-    # q1 = st.text_area("How confident do you feel about your overall evaluation of this report?")
-    # q2 = st.text_area("Were there any symptoms that were particularly difficult to score? Why?")
-    # q3 = st.text_area("Do you think additional information (like clinical history) would help?")
-    # q4 = st.text_area("Any other feedback or observations?")
-
     if st.button("Save Evaluation"):
         result = {
             "report_id": report_index,
             "report_text": report,
             "symptom_scores": scores,
-            # "qualitative": {
-            #     "confidence": q1,
-            #     "difficult_symptoms": q2,
-            #     "extra_info_needed": q3,
-            #     "other_feedback": q4,
-            # },
-            "annotator": st.session_state.username
+            "annotator": st.session_state.username,
+            "source_file": source_file  # store origin
         }
         os.makedirs("annotations", exist_ok=True)
-        with open(f"annotations/report_{report_index}_{st.session_state.username}.json", "w") as f:
+        out_path = f"annotations/report_{report_index}_{st.session_state.username}.json"
+        with open(out_path, "w") as f:
             json.dump(result, f, indent=2)
         st.success("✅ Evaluation saved successfully!")
 
@@ -114,21 +114,7 @@ elif page == "Review Results":
             with open(f) as infile:
                 all_records.append(json.load(infile))
 
-        # Flatten JSON including timings
         df = pd.json_normalize(all_records)
-
-        # Extract elapsed times into new columns
-        for record in all_records:
-            rid = record["report_id"]
-            annotator = record["annotator"]
-            for key, val in record.get("timings", {}).items():
-                col_name = f"{key}_elapsed"
-                if "elapsed" in val and val["elapsed"] is not None:
-                    df.loc[
-                        (df["report_id"] == rid) & (df["annotator"] == annotator),
-                        col_name
-                    ] = val["elapsed"]
-
         st.dataframe(df)
 
         st.download_button(
