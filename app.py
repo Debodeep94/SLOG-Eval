@@ -4,18 +4,6 @@ import json
 import os
 import glob
 import random
-import time
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive
-
-# === Google Drive Setup ===
-@st.cache_resource
-def init_drive():
-    gauth = GoogleAuth()
-    gauth.LocalWebserverAuth()  # Will open browser for OAuth once
-    return GoogleDrive(gauth)
-
-drive = init_drive()
 
 # === Credentials from secrets.toml ===
 USERS = st.secrets["credentials"]
@@ -106,14 +94,22 @@ if page == "Annotate":
     qualitative = {}
     if study_id in st.session_state.qual_samples:
         st.subheader("📝 Qualitative Feedback")
-        qualitative["confidence"] = st.text_area("How confident do you feel about your overall evaluation of this report?",
-                                                 key=f"q1_{report_index}")
-        qualitative["difficult_symptoms"] = st.text_area("Were there any symptoms that were particularly difficult to score?",
-                                                         key=f"q2_{report_index}")
-        qualitative["extra_info_needed"] = st.text_area("Do you think additional information (like clinical history) would help?",
-                                                        key=f"q3_{report_index}")
-        qualitative["other_feedback"] = st.text_area("Any other feedback or observations?",
-                                                     key=f"q4_{report_index}")
+        qualitative["confidence"] = st.text_area(
+            "How confident do you feel about your overall evaluation of this report?",
+            key=f"q1_{report_index}"
+        )
+        qualitative["difficult_symptoms"] = st.text_area(
+            "Were there any symptoms that were particularly difficult to score?",
+            key=f"q2_{report_index}"
+        )
+        qualitative["extra_info_needed"] = st.text_area(
+            "Do you think additional information (like clinical history) would help?",
+            key=f"q3_{report_index}"
+        )
+        qualitative["other_feedback"] = st.text_area(
+            "Any other feedback or observations?",
+            key=f"q4_{report_index}"
+        )
 
     if st.button("Save Evaluation"):
         result = {
@@ -131,12 +127,7 @@ if page == "Annotate":
         with open(filename, "w") as f:
             json.dump(result, f, indent=2)
 
-        # Upload to Google Drive folder
-        file_drive = drive.CreateFile({"title": os.path.basename(filename)})
-        file_drive.SetContentFile(filename)
-        file_drive.Upload()
-
-        st.success("✅ Evaluation saved successfully and uploaded to Drive!")
+        st.success("✅ Evaluation saved successfully!")
 
 # === Review Results page ===
 elif page == "Review Results":
@@ -148,26 +139,32 @@ elif page == "Review Results":
             with open(f) as infile:
                 all_records.append(json.load(infile))
 
-        df = pd.json_normalize(all_records, sep="_")
-
-        # Expand symptom_scores into columns
-        scores_df = pd.json_normalize(all_records, record_path=None,
-                                      meta=["report_id","study_id","annotator","source_file"],
-                                      record_prefix="",
-                                      errors="ignore")
+        # Build dataframe with symptom scores + qualitative
+        rows = []
         for r in all_records:
-            for s, v in r["symptom_scores"].items():
-                scores_df.loc[scores_df["study_id"] == r["study_id"], s] = v
+            row = {
+                "report_id": r["report_id"],
+                "study_id": r["study_id"],
+                "annotator": r["annotator"],
+                "source_file": r["source_file"],
+                "report_text": r["report_text"],
+                "image_path": r["image_path"],
+            }
+            # Add symptoms
+            row.update(r["symptom_scores"])
+            # Add qualitative (if any)
+            row["confidence"] = r["qualitative"].get("confidence", "")
+            row["difficult_symptoms"] = r["qualitative"].get("difficult_symptoms", "")
+            row["extra_info_needed"] = r["qualitative"].get("extra_info_needed", "")
+            row["other_feedback"] = r["qualitative"].get("other_feedback", "")
+            rows.append(row)
 
-            if r["qualitative"]:
-                for qk, qv in r["qualitative"].items():
-                    scores_df.loc[scores_df["study_id"] == r["study_id"], qk] = qv
-
-        st.dataframe(scores_df)
+        df = pd.DataFrame(rows)
+        st.dataframe(df)
 
         st.download_button(
             "⬇️ Download all annotations as CSV",
-            scores_df.to_csv(index=False).encode("utf-8"),
+            df.to_csv(index=False).encode("utf-8"),
             file_name="survey_results.csv",
             mime="text/csv"
         )
