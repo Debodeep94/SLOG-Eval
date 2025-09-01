@@ -69,7 +69,7 @@ if page == "Annotate":
     source_file = sources[report_index-1]
     study_id = study_ids[report_index-1]
 
-    st.header(f"Patient Report #{report_index}")
+    st.header(f"Patient Report #{report_index} - ID: {study_id}")  # << added
     st.text_area("Report Text", report, height=200)
 
     st.image(image_url[report_index-1], caption=f"Chest X-ray #{report_index}", use_container_width=True)
