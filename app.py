@@ -58,8 +58,14 @@ symptoms = [
 
 # === Main navigation ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
-pages = ["Annotate", "Review Results"]
-page = st.sidebar.radio("📂 Navigation", pages)
+if st.session_state.username == "admin":
+    st.sidebar.warning("⚠️ Admin mode: You can review all annotations.")
+    pages = ["Annotate", "Review Results"]
+    page = st.sidebar.radio("📂 Navigation", pages)
+else:
+    pages = ["Annotate"]#, "Review Results"]
+    page = st.sidebar.radio("📂 Navigation", pages)
+
 
 # === Annotate page ===
 if page == "Annotate":
