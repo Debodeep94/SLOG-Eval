@@ -69,9 +69,9 @@ else:
 
 # === Annotate page ===
 if page == "Annotate":
-    st.sidebar.title("Report Navigator")
-    # report_index = st.sidebar.selectbox("Select Report", range(1, len(reports)+1))
-    report_index = st.session_state.current_index if "current_index" in st.session_state else 1
+    # st.sidebar.title("Report Navigator")
+    report_index = st.sidebar.selectbox("Select Report", range(1, len(reports)+1))
+    # report_index = st.session_state.current_index 
     print(report_index)
     report = reports[report_index-1]
     source_file = sources[report_index-1]
