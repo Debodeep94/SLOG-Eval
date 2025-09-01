@@ -11,9 +11,6 @@ USERS = st.secrets["credentials"]
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-if "current_index" not in st.session_state:
-    st.session_state.current_index = 0  # start from first report
-
 def login():
     st.title("🔐 Login Required")
     username = st.text_input("Username")
@@ -34,6 +31,7 @@ if not st.session_state.logged_in:
 # === Load and shuffle combined dataset (once per session) ===
 if "data" not in st.session_state:
 
+    #  for annotations: 
     df1 = pd.read_csv("selected_samples.csv")
     df1["source_file"] = "selected_samples.csv"
 
@@ -41,7 +39,7 @@ if "data" not in st.session_state:
     df2["source_file"] = "selected_samples00.csv"
 
     combined = pd.concat([df1, df2], ignore_index=True)
-    combined = combined.sample(frac=1, random_state=None).reset_index(drop=True)
+    combined = combined.sample(frac=1, random_state=None).reset_index(drop=True)  # shuffle
 
     st.session_state.data = combined
 
@@ -49,7 +47,7 @@ data = st.session_state.data
 reports = data['reports_preds'].tolist()
 image_url = data['paths'].tolist()
 sources = data['source_file'].tolist()
-study_ids = data['study_id'].tolist()
+study_ids = data['study_id'].tolist()   # << added
 
 symptoms = [
     'Atelectasis','Cardiomegaly','Consolidation','Edema',
@@ -65,20 +63,22 @@ if st.session_state.username == "admin":
     pages = ["Annotate", "Review Results"]
     page = st.sidebar.radio("📂 Navigation", pages)
 else:
-    pages = ["Annotate"]
+    pages = ["Annotate"]#, "Review Results"]
     page = st.sidebar.radio("📂 Navigation", pages)
+
 
 # === Annotate page ===
 if page == "Annotate":
-    report_index = st.session_state.current_index
-    report = reports[report_index]
-    source_file = sources[report_index]
-    study_id = study_ids[report_index]
+    st.sidebar.title("Report Navigator")
+    report_index = st.sidebar.selectbox("Select Report", range(1, len(reports)+1))
+    report = reports[report_index-1]
+    source_file = sources[report_index-1]
+    study_id = study_ids[report_index-1]
 
-    st.header(f"Patient Report #{report_index+1} - ID: {study_id}")
+    st.header(f"Patient Report #{report_index} - ID: {study_id}")  # << added
     st.text_area("Report Text", report, height=200)
 
-    st.image(image_url[report_index], caption=f"Chest X-ray #{report_index+1}", use_container_width=True)
+    st.image(image_url[report_index-1], caption=f"Chest X-ray #{report_index}", use_container_width=True)
 
     st.subheader("Symptom Evaluation")
     st.write(
@@ -99,27 +99,20 @@ if page == "Annotate":
         )
         scores[symptom] = selected
 
-    if st.button("Save & Next"):
+    if st.button("Save Evaluation"):
         result = {
-            "report_id": report_index+1,
-            "study_id": study_id,
+            "report_id": report_index,
+            "study_id": study_id,   # << added
             "report_text": report,
             "symptom_scores": scores,
             "annotator": st.session_state.username,
-            "source_file": source_file
+            "source_file": source_file  # store origin
         }
         os.makedirs("annotations", exist_ok=True)
-        out_path = f"annotations/report_{report_index+1}_{st.session_state.username}.json"
+        out_path = f"annotations/report_{report_index}_{st.session_state.username}.json"
         with open(out_path, "w") as f:
             json.dump(result, f, indent=2)
         st.success("✅ Evaluation saved successfully!")
-
-        # Move to next report if available
-        if st.session_state.current_index < len(reports) - 1:
-            st.session_state.current_index += 1
-            st.rerun()
-        else:
-            st.info("🎉 You have completed all reports!")
 
 # === Review Results page ===
 elif page == "Review Results":
