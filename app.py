@@ -59,20 +59,19 @@ data2 = data2.assign(source_file="selected_samples00.csv")
 # Merge into one dataset → should be 60 total
 data = pd.concat([data1, data2], ignore_index=True)
 
-# Shuffle so annotators cannot infer source
+# Create unique row identifier so we don’t lose duplicates
+data["row_id"] = data["study_id"].astype(str) + "_" + data["source_file"]
+
+# Shuffle for annotators (but keep stable across reruns)
 data = data.sample(frac=1, random_state=42).reset_index(drop=True)
 
-# Pick common study_ids for qualitative (between the two files)
+# Pick common study_ids for qualitative
 common_ids = list(set(data1["study_id"]).intersection(set(data2["study_id"])))
 if "qual_samples" not in st.session_state:
     if len(common_ids) >= 5:
         st.session_state.qual_samples = random.sample(common_ids, 5)
     else:
         st.session_state.qual_samples = common_ids
-
-reports = data["report"].tolist()
-study_ids = data["study_id"].tolist()
-sources = data["source_file"].tolist()
 
 symptoms = [
     'Atelectasis','Cardiomegaly','Consolidation','Edema',
@@ -88,13 +87,18 @@ def load_user_progress(username):
     for f in user_files:
         with open(f) as infile:
             record = json.load(infile)
-            completed_ids.append(record["study_id"])
+            completed_ids.append(record["row_id"])
     return completed_ids
 
 # === Annotate page ===
 if page == "Annotate":
+    reports = data["report"].tolist()
+    study_ids = data["study_id"].tolist()
+    sources = data["source_file"].tolist()
+    row_ids = data["row_id"].tolist()
+
     completed = load_user_progress(st.session_state.username)
-    remaining_indices = [i for i, sid in enumerate(study_ids) if sid not in completed]
+    remaining_indices = [i for i, rid in enumerate(row_ids) if rid not in completed]
 
     if not remaining_indices:
         st.success("🎉 You have completed all available reports!")
@@ -103,7 +107,8 @@ if page == "Annotate":
     report_index = remaining_indices[0]
     report = reports[report_index]
     study_id = study_ids[report_index]
-    source = sources[report_index]  # kept for admin tracking, not shown to annotator
+    source = sources[report_index]  # hidden from annotator
+    row_id = row_ids[report_index]
 
     st.header(f"Patient Report (Study {study_id})")
     st.text_area("Report Text", str(report), height=200, disabled=True)
@@ -115,20 +120,21 @@ if page == "Annotate":
             label=symptom,
             options=[0, 1, 2],
             horizontal=True,
-            key=f"{symptom}_{study_id}"
+            key=f"{symptom}_{row_id}"
         )
         scores[symptom] = selected
 
     qualitative = {}
     if study_id in st.session_state.qual_samples:
         st.subheader("📝 Qualitative Feedback")
-        qualitative["confidence"] = st.text_area("How confident are you?", key=f"q1_{study_id}")
-        qualitative["difficult_symptoms"] = st.text_area("Any difficult symptoms?", key=f"q2_{study_id}")
-        qualitative["extra_info_needed"] = st.text_area("Would extra info help?", key=f"q3_{study_id}")
-        qualitative["other_feedback"] = st.text_area("Other feedback?", key=f"q4_{study_id}")
+        qualitative["confidence"] = st.text_area("How confident are you?", key=f"q1_{row_id}")
+        qualitative["difficult_symptoms"] = st.text_area("Any difficult symptoms?", key=f"q2_{row_id}")
+        qualitative["extra_info_needed"] = st.text_area("Would extra info help?", key=f"q3_{row_id}")
+        qualitative["other_feedback"] = st.text_area("Other feedback?", key=f"q4_{row_id}")
 
     if st.button("💾 Save & Next"):
         result = {
+            "row_id": row_id,
             "study_id": study_id,
             "report_text": str(report),
             "symptom_scores": scores,
@@ -137,7 +143,7 @@ if page == "Annotate":
             "source_file": source
         }
         os.makedirs("annotations", exist_ok=True)
-        filename = f"annotations/{study_id}_{st.session_state.username}.json"
+        filename = f"annotations/{row_id}_{st.session_state.username}.json"
         with open(filename, "w") as f:
             json.dump(result, f, indent=2)
 
@@ -157,6 +163,7 @@ elif page == "Review Results":
         rows = []
         for r in all_records:
             row = {
+                "row_id": r["row_id"],
                 "study_id": r["study_id"],
                 "annotator": r["annotator"],
                 "source_file": r["source_file"],  # visible only to admin
