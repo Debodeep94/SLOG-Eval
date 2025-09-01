@@ -29,8 +29,9 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# === Sidebar ===
+# === Main navigation ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
+
 if st.session_state.username == "admin":
     pages = ["Annotate", "Review Results"]
 else:
@@ -40,7 +41,7 @@ page = st.sidebar.radio("📂 Navigation", pages)
 
 # === Data load ===
 def normalize(df):
-    """Ensure report column is named 'report'."""
+    """Ensure report column is consistently named 'report'."""
     candidates = [c for c in df.columns if c.lower() not in ["study_id", "paths", "image_path", "source_file"]]
     if not candidates:
         raise ValueError(f"No suitable report column found. Available: {df.columns.tolist()}")
@@ -51,13 +52,17 @@ def normalize(df):
 data1 = normalize(pd.read_csv("selected_samples.csv"))
 data2 = normalize(pd.read_csv("selected_samples00.csv"))
 
-data = pd.concat(
-    [data1.assign(source_file="selected_samples.csv"),
-     data2.assign(source_file="selected_samples00.csv")],
-    ignore_index=True
-)
+# Tag each dataset so admin can distinguish later
+data1 = data1.assign(source_file="selected_samples.csv")
+data2 = data2.assign(source_file="selected_samples00.csv")
 
-# Pick common study_ids for qualitative
+# Merge into one dataset → should be 60 total
+data = pd.concat([data1, data2], ignore_index=True)
+
+# Shuffle so annotators cannot infer source
+data = data.sample(frac=1, random_state=42).reset_index(drop=True)
+
+# Pick common study_ids for qualitative (between the two files)
 common_ids = list(set(data1["study_id"]).intersection(set(data2["study_id"])))
 if "qual_samples" not in st.session_state:
     if len(common_ids) >= 5:
@@ -76,7 +81,7 @@ symptoms = [
     'Pneumonia','Pneumothorax','Support Devices'
 ]
 
-# === Helper: load progress ===
+# === Helper: Load existing progress ===
 def load_user_progress(username):
     user_files = glob.glob(f"annotations/*_{username}.json")
     completed_ids = []
@@ -98,7 +103,7 @@ if page == "Annotate":
     report_index = remaining_indices[0]
     report = reports[report_index]
     study_id = study_ids[report_index]
-    source = sources[report_index]
+    source = sources[report_index]  # kept for admin tracking, not shown to annotator
 
     st.header(f"Patient Report (Study {study_id})")
     st.text_area("Report Text", str(report), height=200, disabled=True)
@@ -129,7 +134,7 @@ if page == "Annotate":
             "symptom_scores": scores,
             "qualitative": qualitative if study_id in st.session_state.qual_samples else {},
             "annotator": st.session_state.username,
-            "source_file": source  # saved, but not shown to doctor
+            "source_file": source
         }
         os.makedirs("annotations", exist_ok=True)
         filename = f"annotations/{study_id}_{st.session_state.username}.json"
@@ -139,7 +144,7 @@ if page == "Annotate":
         st.success("✅ Saved! Loading next...")
         st.rerun()
 
-# === Review Results (admin only) ===
+# === Review Results page (admin only) ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
     files = glob.glob("annotations/*.json")
@@ -154,7 +159,7 @@ elif page == "Review Results":
             row = {
                 "study_id": r["study_id"],
                 "annotator": r["annotator"],
-                "source_file": r["source_file"],  # admin sees source
+                "source_file": r["source_file"],  # visible only to admin
                 "report_text": r["report_text"],
             }
             row.update(r["symptom_scores"])
