@@ -115,6 +115,13 @@ if page == "Annotate":
             json.dump(result, f, indent=2)
         st.success("✅ Evaluation saved successfully!")
 
+        # Move to next report if available
+        if st.session_state.current_index < len(reports) - 1:
+            st.session_state.current_index += 1
+            st.rerun()
+        else:
+            st.info("🎉 You have completed all reports!")
+
 # === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
