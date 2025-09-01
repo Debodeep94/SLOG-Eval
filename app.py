@@ -29,9 +29,8 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# === Main navigation ===
+# === Sidebar ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
-
 if st.session_state.username == "admin":
     pages = ["Annotate", "Review Results"]
 else:
@@ -41,19 +40,17 @@ page = st.sidebar.radio("📂 Navigation", pages)
 
 # === Data load ===
 def normalize(df):
-    """Make sure report column is consistently named 'report'."""
-    # Find the likely report column (first text-like column that isn't study_id/paths/etc.)
+    """Ensure report column is named 'report'."""
     candidates = [c for c in df.columns if c.lower() not in ["study_id", "paths", "image_path", "source_file"]]
     if not candidates:
         raise ValueError(f"No suitable report column found. Available: {df.columns.tolist()}")
-    report_col = candidates[0]  # assume the first candidate is the report text
+    report_col = candidates[0]
     df = df.rename(columns={report_col: "report"})
     return df
 
 data1 = normalize(pd.read_csv("selected_samples.csv"))
 data2 = normalize(pd.read_csv("selected_samples00.csv"))
 
-# Merge datasets
 data = pd.concat(
     [data1.assign(source_file="selected_samples.csv"),
      data2.assign(source_file="selected_samples00.csv")],
@@ -79,7 +76,7 @@ symptoms = [
     'Pneumonia','Pneumothorax','Support Devices'
 ]
 
-# === Helper: Load existing progress ===
+# === Helper: load progress ===
 def load_user_progress(username):
     user_files = glob.glob(f"annotations/*_{username}.json")
     completed_ids = []
@@ -132,7 +129,7 @@ if page == "Annotate":
             "symptom_scores": scores,
             "qualitative": qualitative if study_id in st.session_state.qual_samples else {},
             "annotator": st.session_state.username,
-            "source_file": source
+            "source_file": source  # saved, but not shown to doctor
         }
         os.makedirs("annotations", exist_ok=True)
         filename = f"annotations/{study_id}_{st.session_state.username}.json"
@@ -142,7 +139,7 @@ if page == "Annotate":
         st.success("✅ Saved! Loading next...")
         st.rerun()
 
-# === Review Results page (admin only) ===
+# === Review Results (admin only) ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
     files = glob.glob("annotations/*.json")
@@ -157,7 +154,7 @@ elif page == "Review Results":
             row = {
                 "study_id": r["study_id"],
                 "annotator": r["annotator"],
-                "source_file": r["source_file"],
+                "source_file": r["source_file"],  # admin sees source
                 "report_text": r["report_text"],
             }
             row.update(r["symptom_scores"])
