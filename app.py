@@ -32,7 +32,7 @@ if not st.session_state.logged_in:
 # === Main navigation ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
 
-# Admin gets both pages, others only "Annotate"
+# Admin gets both pages, others only Annotate
 if st.session_state.username == "admin":
     pages = ["Annotate", "Review Results"]
 else:
@@ -41,8 +41,15 @@ else:
 page = st.sidebar.radio("📂 Navigation", pages)
 
 # === Data load ===
-data1 = pd.read_csv("selected_samples.csv")
-data2 = pd.read_csv("selected_samples00.csv")
+def normalize(df):
+    for col in ["reports_preds", "report_text", "report", "Report"]:
+        if col in df.columns:
+            df = df.rename(columns={col: "report"})
+            return df
+    raise ValueError(f"No report column found. Available: {df.columns.tolist()}")
+
+data1 = normalize(pd.read_csv("selected_samples.csv"))
+data2 = normalize(pd.read_csv("selected_samples00.csv"))
 
 # Merge datasets
 data = pd.concat(
@@ -59,7 +66,10 @@ if "qual_samples" not in st.session_state:
     else:
         st.session_state.qual_samples = common_ids
 
-# Symptoms
+reports = data["report"].tolist()
+study_ids = data["study_id"].tolist()
+sources = data["source_file"].tolist()
+
 symptoms = [
     'Atelectasis','Cardiomegaly','Consolidation','Edema',
     'Enlarged Cardiomediastinum','Fracture','Lung Lesion',
@@ -67,22 +77,33 @@ symptoms = [
     'Pneumonia','Pneumothorax','Support Devices'
 ]
 
+# === Helper: Load existing progress ===
+def load_user_progress(username):
+    user_files = glob.glob(f"annotations/*_{username}.json")
+    completed_ids = []
+    for f in user_files:
+        with open(f) as infile:
+            record = json.load(infile)
+            completed_ids.append(record["study_id"])
+    return completed_ids
+
 # === Annotate page ===
 if page == "Annotate":
-    if "current_index" not in st.session_state:
-        st.session_state.current_index = 0
+    # Load progress
+    completed = load_user_progress(st.session_state.username)
+    remaining_indices = [i for i, sid in enumerate(study_ids) if sid not in completed]
 
-    idx = st.session_state.current_index
-    if idx >= len(data):
-        st.success("🎉 All reports completed! Thank you for your annotations.")
+    if not remaining_indices:
+        st.success("🎉 You have completed all available reports!")
         st.stop()
 
-    row = data.iloc[idx]
-    study_id = row["study_id"]
-    report = row["reports_preds"]
-    source = row["source_file"]
+    # Show first remaining report
+    report_index = remaining_indices[0]
+    report = reports[report_index]
+    study_id = study_ids[report_index]
+    source = sources[report_index]
 
-    st.header(f"Patient Report {idx+1} / {len(data)} (Study {study_id})")
+    st.header(f"Patient Report (Study {study_id})")
     st.text_area("Report Text", report, height=200, disabled=True)
 
     st.subheader("Symptom Evaluation")
@@ -92,34 +113,21 @@ if page == "Annotate":
             label=symptom,
             options=[0, 1, 2],
             horizontal=True,
-            key=f"{symptom}_{idx}"
+            key=f"{symptom}_{study_id}"
         )
         scores[symptom] = selected
 
-    # Qualitative section for selected study_ids
+    # If qualitative sample → show extra questions
     qualitative = {}
     if study_id in st.session_state.qual_samples:
         st.subheader("📝 Qualitative Feedback")
-        qualitative["confidence"] = st.text_area(
-            "How confident do you feel about your overall evaluation of this report?",
-            key=f"q1_{idx}"
-        )
-        qualitative["difficult_symptoms"] = st.text_area(
-            "Were there any symptoms that were particularly difficult to score?",
-            key=f"q2_{idx}"
-        )
-        qualitative["extra_info_needed"] = st.text_area(
-            "Do you think additional information (like clinical history) would help?",
-            key=f"q3_{idx}"
-        )
-        qualitative["other_feedback"] = st.text_area(
-            "Any other feedback or observations?",
-            key=f"q4_{idx}"
-        )
+        qualitative["confidence"] = st.text_area("How confident are you?", key=f"q1_{study_id}")
+        qualitative["difficult_symptoms"] = st.text_area("Any difficult symptoms?", key=f"q2_{study_id}")
+        qualitative["extra_info_needed"] = st.text_area("Would extra info help?", key=f"q3_{study_id}")
+        qualitative["other_feedback"] = st.text_area("Other feedback?", key=f"q4_{study_id}")
 
-    if st.button("Next ➡️"):
+    if st.button("💾 Save & Next"):
         result = {
-            "report_id": idx + 1,
             "study_id": study_id,
             "report_text": report,
             "symptom_scores": scores,
@@ -128,14 +136,14 @@ if page == "Annotate":
             "source_file": source
         }
         os.makedirs("annotations", exist_ok=True)
-        filename = f"annotations/report_{study_id}_{st.session_state.username}.json"
+        filename = f"annotations/{study_id}_{st.session_state.username}.json"
         with open(filename, "w") as f:
             json.dump(result, f, indent=2)
 
-        st.session_state.current_index += 1
+        st.success("✅ Saved! Loading next...")
         st.rerun()
 
-# === Review Results page ===
+# === Review Results page (admin only) ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
     files = glob.glob("annotations/*.json")
@@ -145,11 +153,10 @@ elif page == "Review Results":
             with open(f) as infile:
                 all_records.append(json.load(infile))
 
-        # Build dataframe
+        # Build dataframe with symptom scores + qualitative
         rows = []
         for r in all_records:
             row = {
-                "report_id": r["report_id"],
                 "study_id": r["study_id"],
                 "annotator": r["annotator"],
                 "source_file": r["source_file"],
