@@ -20,7 +20,6 @@ def login():
         if username in USERS and USERS[username] == password:
             st.session_state.logged_in = True
             st.session_state.username = username
-            st.session_state.current_index = 0  # start from first report
             st.success("✅ Logged in successfully!")
             st.rerun()
         else:
@@ -54,9 +53,10 @@ if "qual_samples" not in st.session_state:
     else:
         st.session_state.qual_samples = common_ids
 
-# Shuffle reports ONCE per login
-if "shuffled_data" not in st.session_state:
-    st.session_state.shuffled_data = data.sample(frac=1, random_state=42).reset_index(drop=True).to_dict("records")
+reports = data["reports_preds"].tolist()
+image_url = data["paths"].tolist()
+study_ids = data["study_id"].tolist()
+sources = data["source_file"].tolist()
 
 symptoms = [
     'Atelectasis','Cardiomegaly','Consolidation','Edema',
@@ -67,21 +67,17 @@ symptoms = [
 
 # === Annotate page ===
 if page == "Annotate":
-    reports_total = len(st.session_state.shuffled_data)
+    st.sidebar.title("Report Navigator")
+    report_index = st.sidebar.selectbox("Select Report", range(1, len(reports)+1))
+    
+    report = reports[report_index-1]
+    img = image_url[report_index-1]
+    study_id = study_ids[report_index-1]
+    source = sources[report_index-1]
 
-    if st.session_state.current_index >= reports_total:
-        st.success("🎉 All reports completed! Please go to 'Review Results' to download your data.")
-        st.stop()
-
-    # Get current report
-    record = st.session_state.shuffled_data[st.session_state.current_index]
-    report_index = st.session_state.current_index + 1
-    report = record["reports_preds"]
-    study_id = record["study_id"]
-    source = record["source_file"]
-
-    st.header(f"Report {report_index} of {reports_total} (Study {study_id})")
+    st.header(f"Patient Report #{report_index} (Study {study_id})")
     st.text_area("Report Text", report, height=200)
+    st.image(img, caption=f"Chest X-ray #{report_index}", use_container_width=True)
 
     st.subheader("Symptom Evaluation")
     scores = {}
@@ -115,11 +111,12 @@ if page == "Annotate":
             key=f"q4_{report_index}"
         )
 
-    if st.button("Next ➡️"):
+    if st.button("Save Evaluation"):
         result = {
             "report_id": report_index,
             "study_id": study_id,
             "report_text": report,
+            "image_path": img,
             "symptom_scores": scores,
             "qualitative": qualitative if study_id in st.session_state.qual_samples else {},
             "annotator": st.session_state.username,
@@ -130,8 +127,7 @@ if page == "Annotate":
         with open(filename, "w") as f:
             json.dump(result, f, indent=2)
 
-        st.session_state.current_index += 1
-        st.rerun()
+        st.success("✅ Evaluation saved successfully!")
 
 # === Review Results page ===
 elif page == "Review Results":
@@ -152,6 +148,7 @@ elif page == "Review Results":
                 "annotator": r["annotator"],
                 "source_file": r["source_file"],
                 "report_text": r["report_text"],
+                "image_path": r["image_path"],
             }
             # Add symptoms
             row.update(r["symptom_scores"])
