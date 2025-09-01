@@ -45,7 +45,7 @@ if "data" not in st.session_state:
 
 data = st.session_state.data
 reports = data['reports_preds'].tolist()
-image_url = data['paths'].tolist()
+# image_url = data['paths'].tolist()
 sources = data['source_file'].tolist()
 study_ids = data['study_id'].tolist()   # << added
 
@@ -78,7 +78,7 @@ if page == "Annotate":
     st.header(f"Patient Report #{report_index} - ID: {study_id}")  # << added
     st.text_area("Report Text", report, height=200)
 
-    st.image(image_url[report_index-1], caption=f"Chest X-ray #{report_index}", use_container_width=True)
+    # st.image(image_url[report_index-1], caption=f"Chest X-ray #{report_index}", use_container_width=True)
 
     st.subheader("Symptom Evaluation")
     st.write(
