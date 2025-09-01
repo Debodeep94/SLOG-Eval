@@ -31,7 +31,13 @@ if not st.session_state.logged_in:
 
 # === Main navigation ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
-pages = ["Annotate", "Review Results"]
+
+# Admin gets both pages, others only "Annotate"
+if st.session_state.username == "admin":
+    pages = ["Annotate", "Review Results"]
+else:
+    pages = ["Annotate"]
+
 page = st.sidebar.radio("📂 Navigation", pages)
 
 # === Data load ===
