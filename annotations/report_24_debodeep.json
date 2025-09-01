@@ -1,0 +1,23 @@
+{
+  "report_id": 24,
+  "study_id": "s52440373",
+  "report_text": "pa and lateral chest views were obtained with patient in upright position . analysis is performed in direct comparison with the next preceding similar study of . the heart size remains unchanged and is within normal limits . no typical configurational abnormality is seen . unremarkable appearance of thoracic aorta . the pulmonary vasculature is not congested . no signs of acute or chronic parenchymal infiltrates are present and the",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  },
+  "annotator": "debodeep",
+  "source_file": "selected_samples00.csv"
+}

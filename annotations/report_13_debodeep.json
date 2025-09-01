@@ -1,0 +1,23 @@
+{
+  "report_id": 13,
+  "study_id": "s58001075",
+  "report_text": "pa and lateral views of the chest provided . left chest wall pacer device is again seen with leads extending to the region of the right atrium and right ventricle . elevation of left hemidiaphragm is again noted . there is left upper lobe scarring with associated volume loss . there is no focal consolidation concerning for pneumonia . no large effusion or pneumothorax . the cardiomediastinal silhouette appears grossly",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  },
+  "annotator": "debodeep",
+  "source_file": "selected_samples.csv"
+}

@@ -1,0 +1,23 @@
+{
+  "report_id": 7,
+  "study_id": "s58510466",
+  "report_text": "single portable view of the chest is compared to previous exam from . when compared to prior there has been no significant interval change . again seen is elevation of the right hemidiaphragm with right basilar opacity potentially due to atelectasis . superiorly the lungs are clear . cardiomediastinal silhouette is within normal limits . osseous and soft tissue structures are unremarkable .",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  },
+  "annotator": "debodeep",
+  "source_file": "selected_samples.csv"
+}

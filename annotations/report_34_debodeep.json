@@ -1,0 +1,23 @@
+{
+  "report_id": 34,
+  "study_id": "s54240852",
+  "report_text": "the lungs are clear without focal consolidation . no pleural effusion or pneumothorax is seen . the cardiac and mediastinal silhouettes are unremarkable .",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  },
+  "annotator": "debodeep",
+  "source_file": "selected_samples.csv"
+}

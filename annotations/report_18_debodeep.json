@@ -1,0 +1,23 @@
+{
+  "report_id": 18,
+  "study_id": "s55372843",
+  "report_text": "frontal and lateral views of the chest were obtained . the lungs are hyperinflated with flattening of the diaphragms suggesting chronic obstructive pulmonary disease . biapical pleural scarring is again seen . there is no focal consolidation pleural effusion or evidence of pneumothorax . the cardiac and mediastinal silhouettes are stable and unremarkable .",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  },
+  "annotator": "debodeep",
+  "source_file": "selected_samples.csv"
+}

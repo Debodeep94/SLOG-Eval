@@ -1,0 +1,23 @@
+{
+  "report_id": 14,
+  "study_id": "s58929044",
+  "report_text": "pa and lateral views of the chest were provided . there is extensive scarring in the right upper lobe with upward retraction of the right hilum and retraction of the right hilum . there is a nodular opacity in the left upper lobe which is concerning for malignancy . there is a nodular opacity projecting over the left mid lung which could represent a nipple shadow . there is a",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  },
+  "annotator": "debodeep",
+  "source_file": "selected_samples.csv"
+}

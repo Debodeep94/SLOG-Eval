@@ -1,0 +1,23 @@
+{
+  "report_id": 29,
+  "study_id": "s53417168",
+  "report_text": "right-sided port-a-cath tip terminates in the proximal right atrium . patient is status post median sternotomy and cabg . left-sided pacemaker device is noted with leads terminating in the right atrium and right ventricle . moderate enlargement of the cardiac silhouette is re- demonstrated . mediastinal and hilar contours are unchanged . pulmonary vasculature is not engorged . patchy opacities in the lung bases likely reflect areas of atelectasis .",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  },
+  "annotator": "debodeep",
+  "source_file": "selected_samples.csv"
+}

@@ -1,0 +1,23 @@
+{
+  "report_id": 19,
+  "study_id": "s51096107",
+  "report_text": "right internal jugular central venous catheter tip terminates in the mid svc . lung volumes are low . heart size is mildly enlarged . mediastinal and hilar contours are unremarkable . crowding of bronchovascular structures is present without overt pulmonary edema . patchy opacities in the lung bases likely reflect areas of atelectasis . no large pleural effusion or pneumothorax is identified . there are no acute osseous abnormalities .",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  },
+  "annotator": "debodeep",
+  "source_file": "selected_samples.csv"
+}

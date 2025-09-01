@@ -1,0 +1,23 @@
+{
+  "report_id": 28,
+  "study_id": "s53091413",
+  "report_text": "the patient is status post median sternotomy and cabg . moderate enlargement of the cardiac silhouette is unchanged . the mediastinal and hilar contours are similar . mild pulmonary edema is not substantially changed in the interval . no focal consolidation pleural effusion or pneumothorax is present . there are no acute osseous abnormalities .",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  },
+  "annotator": "debodeep",
+  "source_file": "selected_samples.csv"
+}

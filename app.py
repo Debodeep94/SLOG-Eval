@@ -11,6 +11,10 @@ USERS = st.secrets["credentials"]
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
+# Track current report index
+if "current_index" not in st.session_state:
+    st.session_state.current_index = 0 # start from first report
+
 def login():
     st.title("🔐 Login Required")
     username = st.text_input("Username")
@@ -69,11 +73,12 @@ else:
 
 # === Annotate page ===
 if page == "Annotate":
-    # st.sidebar.title("Report Navigator")
-    report_index = st.sidebar.selectbox("Select Report", range(1, len(reports)+1))
-    # report_index = st.session_state.current_index 
-    print(report_index)
+    st.sidebar.title("Report Navigator")
+    # report_index = st.sidebar.selectbox("Select Report", range(1, len(reports)+1))
+    report_index = st.session_state.current_index
+    # print(report_index)
     report = reports[report_index-1]
+
     source_file = sources[report_index-1]
     study_id = study_ids[report_index-1]
 

@@ -1,0 +1,23 @@
+{
+  "report_id": 11,
+  "study_id": "s58598132",
+  "report_text": "right internal jugular central venous catheter tip terminates in the mid svc . moderate to severe cardiomegaly is re- demonstrated . the mediastinal and hilar contours are unchanged . moderate pulmonary edema is slightly worse in the interval . small right pleural effusion is unchanged . bibasilar airspace opacities likely reflect atelectasis . no pneumothorax is identified . there are no acute osseous abnormalities .",
+  "symptom_scores": {
+    "Atelectasis": 0,
+    "Cardiomegaly": 0,
+    "Consolidation": 0,
+    "Edema": 0,
+    "Enlarged Cardiomediastinum": 0,
+    "Fracture": 0,
+    "Lung Lesion": 0,
+    "Lung Opacity": 0,
+    "No Finding": 0,
+    "Pleural Effusion": 0,
+    "Pleural Other": 0,
+    "Pneumonia": 0,
+    "Pneumothorax": 0,
+    "Support Devices": 0
+  },
+  "annotator": "debodeep",
+  "source_file": "selected_samples.csv"
+}
