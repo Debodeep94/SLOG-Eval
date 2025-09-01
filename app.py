@@ -32,7 +32,6 @@ if not st.session_state.logged_in:
 # === Main navigation ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
 
-# Admin gets both pages, others only Annotate
 if st.session_state.username == "admin":
     pages = ["Annotate", "Review Results"]
 else:
@@ -42,11 +41,14 @@ page = st.sidebar.radio("📂 Navigation", pages)
 
 # === Data load ===
 def normalize(df):
-    for col in ["reports_preds", "report_text", "report", "Report"]:
-        if col in df.columns:
-            df = df.rename(columns={col: "report"})
-            return df
-    raise ValueError(f"No report column found. Available: {df.columns.tolist()}")
+    """Make sure report column is consistently named 'report'."""
+    # Find the likely report column (first text-like column that isn't study_id/paths/etc.)
+    candidates = [c for c in df.columns if c.lower() not in ["study_id", "paths", "image_path", "source_file"]]
+    if not candidates:
+        raise ValueError(f"No suitable report column found. Available: {df.columns.tolist()}")
+    report_col = candidates[0]  # assume the first candidate is the report text
+    df = df.rename(columns={report_col: "report"})
+    return df
 
 data1 = normalize(pd.read_csv("selected_samples.csv"))
 data2 = normalize(pd.read_csv("selected_samples00.csv"))
@@ -89,7 +91,6 @@ def load_user_progress(username):
 
 # === Annotate page ===
 if page == "Annotate":
-    # Load progress
     completed = load_user_progress(st.session_state.username)
     remaining_indices = [i for i, sid in enumerate(study_ids) if sid not in completed]
 
@@ -97,14 +98,13 @@ if page == "Annotate":
         st.success("🎉 You have completed all available reports!")
         st.stop()
 
-    # Show first remaining report
     report_index = remaining_indices[0]
     report = reports[report_index]
     study_id = study_ids[report_index]
     source = sources[report_index]
 
     st.header(f"Patient Report (Study {study_id})")
-    st.text_area("Report Text", report, height=200, disabled=True)
+    st.text_area("Report Text", str(report), height=200, disabled=True)
 
     st.subheader("Symptom Evaluation")
     scores = {}
@@ -117,7 +117,6 @@ if page == "Annotate":
         )
         scores[symptom] = selected
 
-    # If qualitative sample → show extra questions
     qualitative = {}
     if study_id in st.session_state.qual_samples:
         st.subheader("📝 Qualitative Feedback")
@@ -129,7 +128,7 @@ if page == "Annotate":
     if st.button("💾 Save & Next"):
         result = {
             "study_id": study_id,
-            "report_text": report,
+            "report_text": str(report),
             "symptom_scores": scores,
             "qualitative": qualitative if study_id in st.session_state.qual_samples else {},
             "annotator": st.session_state.username,
@@ -153,7 +152,6 @@ elif page == "Review Results":
             with open(f) as infile:
                 all_records.append(json.load(infile))
 
-        # Build dataframe with symptom scores + qualitative
         rows = []
         for r in all_records:
             row = {
