@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import os
 import glob
+import random
 
 # === Credentials from secrets.toml ===
 USERS = st.secrets["credentials"]
@@ -28,26 +29,34 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# === Load and shuffle combined dataset (once per session) ===
-if "data" not in st.session_state:
+# === Main navigation ===
+st.sidebar.success(f"Logged in as {st.session_state.username}")
+pages = ["Annotate", "Review Results"]
+page = st.sidebar.radio("📂 Navigation", pages)
 
-    #  for annotations: 
-    df1 = pd.read_csv("selected_samples.csv")
-    df1["source_file"] = "selected_samples.csv"
+# === Data load ===
+data1 = pd.read_csv("selected_samples.csv")
+data2 = pd.read_csv("selected_samples00.csv")
 
-    df2 = pd.read_csv("selected_samples00.csv")
-    df2["source_file"] = "selected_samples00.csv"
+# Merge for annotation
+data = pd.concat(
+    [data1.assign(source_file="selected_samples.csv"),
+     data2.assign(source_file="selected_samples00.csv")],
+    ignore_index=True
+)
 
-    combined = pd.concat([df1, df2], ignore_index=True)
-    combined = combined.sample(frac=1, random_state=None).reset_index(drop=True)  # shuffle
+# Pick common study_ids for qualitative
+common_ids = list(set(data1["study_id"]).intersection(set(data2["study_id"])))
+if "qual_samples" not in st.session_state:
+    if len(common_ids) >= 5:
+        st.session_state.qual_samples = random.sample(common_ids, 5)
+    else:
+        st.session_state.qual_samples = common_ids
 
-    st.session_state.data = combined
-
-data = st.session_state.data
-reports = data['reports_preds'].tolist()
-image_url = data['paths'].tolist()
-sources = data['source_file'].tolist()
-study_ids = data['study_id'].tolist()   # << added
+reports = data["reports_preds"].tolist()
+image_url = data["paths"].tolist()
+study_ids = data["study_id"].tolist()
+sources = data["source_file"].tolist()
 
 symptoms = [
     'Atelectasis','Cardiomegaly','Consolidation','Edema',
@@ -56,33 +65,21 @@ symptoms = [
     'Pneumonia','Pneumothorax','Support Devices'
 ]
 
-# === Main navigation ===
-st.sidebar.success(f"Logged in as {st.session_state.username}")
-pages = ["Annotate", "Review Results"]
-page = st.sidebar.radio("📂 Navigation", pages)
-
 # === Annotate page ===
 if page == "Annotate":
     st.sidebar.title("Report Navigator")
     report_index = st.sidebar.selectbox("Select Report", range(1, len(reports)+1))
+    
     report = reports[report_index-1]
-    source_file = sources[report_index-1]
+    img = image_url[report_index-1]
     study_id = study_ids[report_index-1]
+    source = sources[report_index-1]
 
-    st.header(f"Patient Report #{report_index}")
+    st.header(f"Patient Report #{report_index} (Study {study_id})")
     st.text_area("Report Text", report, height=200)
-
-    st.image(image_url[report_index-1], caption=f"Chest X-ray #{report_index}", use_container_width=True)
+    st.image(img, caption=f"Chest X-ray #{report_index}", use_container_width=True)
 
     st.subheader("Symptom Evaluation")
-    st.write(
-        "Please review the report and chest X-ray, then assign a score for each listed symptom. "
-        "Use the following coding scheme:\n\n"
-        "- **0** = Assured absence\n"
-        "- **1** = Assured presence\n"
-        "- **2** = Ambiguous / uncertain"
-    )
-
     scores = {}
     for symptom in symptoms:
         selected = st.radio(
@@ -93,25 +90,48 @@ if page == "Annotate":
         )
         scores[symptom] = selected
 
+    # === If study_id is in qualitative sample, show extra questions ===
+    qualitative = {}
+    if study_id in st.session_state.qual_samples:
+        st.subheader("📝 Qualitative Feedback")
+        qualitative["confidence"] = st.text_area(
+            "How confident do you feel about your overall evaluation of this report?",
+            key=f"q1_{report_index}"
+        )
+        qualitative["difficult_symptoms"] = st.text_area(
+            "Were there any symptoms that were particularly difficult to score?",
+            key=f"q2_{report_index}"
+        )
+        qualitative["extra_info_needed"] = st.text_area(
+            "Do you think additional information (like clinical history) would help?",
+            key=f"q3_{report_index}"
+        )
+        qualitative["other_feedback"] = st.text_area(
+            "Any other feedback or observations?",
+            key=f"q4_{report_index}"
+        )
+
     if st.button("Save Evaluation"):
         result = {
             "report_id": report_index,
-            "study_id": study_id,   # << added
+            "study_id": study_id,
             "report_text": report,
+            "image_path": img,
             "symptom_scores": scores,
+            "qualitative": qualitative if study_id in st.session_state.qual_samples else {},
             "annotator": st.session_state.username,
-            "source_file": source_file  # store origin
+            "source_file": source
         }
         os.makedirs("annotations", exist_ok=True)
-        out_path = f"annotations/report_{report_index}_{st.session_state.username}.json"
-        with open(out_path, "w") as f:
+        filename = f"annotations/report_{study_id}_{st.session_state.username}.json"
+        with open(filename, "w") as f:
             json.dump(result, f, indent=2)
+
         st.success("✅ Evaluation saved successfully!")
 
 # === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
-
     files = glob.glob("annotations/*.json")
     if files:
         all_records = []
@@ -119,7 +139,27 @@ elif page == "Review Results":
             with open(f) as infile:
                 all_records.append(json.load(infile))
 
-        df = pd.json_normalize(all_records)
+        # Build dataframe with symptom scores + qualitative
+        rows = []
+        for r in all_records:
+            row = {
+                "report_id": r["report_id"],
+                "study_id": r["study_id"],
+                "annotator": r["annotator"],
+                "source_file": r["source_file"],
+                "report_text": r["report_text"],
+                "image_path": r["image_path"],
+            }
+            # Add symptoms
+            row.update(r["symptom_scores"])
+            # Add qualitative (if any)
+            row["confidence"] = r["qualitative"].get("confidence", "")
+            row["difficult_symptoms"] = r["qualitative"].get("difficult_symptoms", "")
+            row["extra_info_needed"] = r["qualitative"].get("extra_info_needed", "")
+            row["other_feedback"] = r["qualitative"].get("other_feedback", "")
+            rows.append(row)
+
+        df = pd.DataFrame(rows)
         st.dataframe(df)
 
         st.download_button(
