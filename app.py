@@ -20,6 +20,7 @@ def login():
         if username in USERS and USERS[username] == password:
             st.session_state.logged_in = True
             st.session_state.username = username
+            st.session_state.current_index = 0  # start from first report
             st.success("✅ Logged in successfully!")
             st.rerun()
         else:
@@ -31,39 +32,19 @@ if not st.session_state.logged_in:
 
 # === Main navigation ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
-
-if st.session_state.username == "admin":
-    pages = ["Annotate", "Review Results"]
-else:
-    pages = ["Annotate"]
-
+pages = ["Annotate", "Review Results"]
 page = st.sidebar.radio("📂 Navigation", pages)
 
 # === Data load ===
-def normalize(df):
-    """Ensure report column is consistently named 'report'."""
-    candidates = [c for c in df.columns if c.lower() not in ["study_id", "paths", "image_path", "source_file"]]
-    if not candidates:
-        raise ValueError(f"No suitable report column found. Available: {df.columns.tolist()}")
-    report_col = candidates[0]
-    df = df.rename(columns={report_col: "report"})
-    return df
+data1 = pd.read_csv("selected_samples.csv")
+data2 = pd.read_csv("selected_samples00.csv")
 
-data1 = normalize(pd.read_csv("selected_samples.csv"))
-data2 = normalize(pd.read_csv("selected_samples00.csv"))
-
-# Tag each dataset so admin can distinguish later
-data1 = data1.assign(source_file="selected_samples.csv")
-data2 = data2.assign(source_file="selected_samples00.csv")
-
-# Merge into one dataset → should be 60 total
-data = pd.concat([data1, data2], ignore_index=True)
-
-# Create unique row identifier so we don’t lose duplicates
-data["row_id"] = data["study_id"].astype(str) + "_" + data["source_file"]
-
-# Shuffle for annotators (but keep stable across reruns)
-data = data.sample(frac=1, random_state=42).reset_index(drop=True)
+# Merge for annotation
+data = pd.concat(
+    [data1.assign(source_file="selected_samples.csv"),
+     data2.assign(source_file="selected_samples00.csv")],
+    ignore_index=True
+)
 
 # Pick common study_ids for qualitative
 common_ids = list(set(data1["study_id"]).intersection(set(data2["study_id"])))
@@ -73,6 +54,10 @@ if "qual_samples" not in st.session_state:
     else:
         st.session_state.qual_samples = common_ids
 
+# Shuffle reports ONCE per login
+if "shuffled_data" not in st.session_state:
+    st.session_state.shuffled_data = data.sample(frac=1, random_state=42).reset_index(drop=True).to_dict("records")
+
 symptoms = [
     'Atelectasis','Cardiomegaly','Consolidation','Edema',
     'Enlarged Cardiomediastinum','Fracture','Lung Lesion',
@@ -80,38 +65,23 @@ symptoms = [
     'Pneumonia','Pneumothorax','Support Devices'
 ]
 
-# === Helper: Load existing progress ===
-def load_user_progress(username):
-    user_files = glob.glob(f"annotations/*_{username}.json")
-    completed_ids = []
-    for f in user_files:
-        with open(f) as infile:
-            record = json.load(infile)
-            completed_ids.append(record["row_id"])
-    return completed_ids
-
 # === Annotate page ===
 if page == "Annotate":
-    reports = data["report"].tolist()
-    study_ids = data["study_id"].tolist()
-    sources = data["source_file"].tolist()
-    row_ids = data["row_id"].tolist()
+    reports_total = len(st.session_state.shuffled_data)
 
-    completed = load_user_progress(st.session_state.username)
-    remaining_indices = [i for i, rid in enumerate(row_ids) if rid not in completed]
-
-    if not remaining_indices:
-        st.success("🎉 You have completed all available reports!")
+    if st.session_state.current_index >= reports_total:
+        st.success("🎉 All reports completed! Please go to 'Review Results' to download your data.")
         st.stop()
 
-    report_index = remaining_indices[0]
-    report = reports[report_index]
-    study_id = study_ids[report_index]
-    source = sources[report_index]  # hidden from annotator
-    row_id = row_ids[report_index]
+    # Get current report
+    record = st.session_state.shuffled_data[st.session_state.current_index]
+    report_index = st.session_state.current_index + 1
+    report = record["reports_preds"]
+    study_id = record["study_id"]
+    source = record["source_file"]
 
-    st.header(f"Patient Report (Study {study_id})")
-    st.text_area("Report Text", str(report), height=200, disabled=True)
+    st.header(f"Report {report_index} of {reports_total} (Study {study_id})")
+    st.text_area("Report Text", report, height=200)
 
     st.subheader("Symptom Evaluation")
     scores = {}
@@ -120,37 +90,50 @@ if page == "Annotate":
             label=symptom,
             options=[0, 1, 2],
             horizontal=True,
-            key=f"{symptom}_{row_id}"
+            key=f"{symptom}_{report_index}"
         )
         scores[symptom] = selected
 
+    # === If study_id is in qualitative sample, show extra questions ===
     qualitative = {}
     if study_id in st.session_state.qual_samples:
         st.subheader("📝 Qualitative Feedback")
-        qualitative["confidence"] = st.text_area("How confident are you?", key=f"q1_{row_id}")
-        qualitative["difficult_symptoms"] = st.text_area("Any difficult symptoms?", key=f"q2_{row_id}")
-        qualitative["extra_info_needed"] = st.text_area("Would extra info help?", key=f"q3_{row_id}")
-        qualitative["other_feedback"] = st.text_area("Other feedback?", key=f"q4_{row_id}")
+        qualitative["confidence"] = st.text_area(
+            "How confident do you feel about your overall evaluation of this report?",
+            key=f"q1_{report_index}"
+        )
+        qualitative["difficult_symptoms"] = st.text_area(
+            "Were there any symptoms that were particularly difficult to score?",
+            key=f"q2_{report_index}"
+        )
+        qualitative["extra_info_needed"] = st.text_area(
+            "Do you think additional information (like clinical history) would help?",
+            key=f"q3_{report_index}"
+        )
+        qualitative["other_feedback"] = st.text_area(
+            "Any other feedback or observations?",
+            key=f"q4_{report_index}"
+        )
 
-    if st.button("💾 Save & Next"):
+    if st.button("Next ➡️"):
         result = {
-            "row_id": row_id,
+            "report_id": report_index,
             "study_id": study_id,
-            "report_text": str(report),
+            "report_text": report,
             "symptom_scores": scores,
             "qualitative": qualitative if study_id in st.session_state.qual_samples else {},
             "annotator": st.session_state.username,
             "source_file": source
         }
         os.makedirs("annotations", exist_ok=True)
-        filename = f"annotations/{row_id}_{st.session_state.username}.json"
+        filename = f"annotations/report_{study_id}_{st.session_state.username}.json"
         with open(filename, "w") as f:
             json.dump(result, f, indent=2)
 
-        st.success("✅ Saved! Loading next...")
+        st.session_state.current_index += 1
         st.rerun()
 
-# === Review Results page (admin only) ===
+# === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
     files = glob.glob("annotations/*.json")
@@ -160,16 +143,19 @@ elif page == "Review Results":
             with open(f) as infile:
                 all_records.append(json.load(infile))
 
+        # Build dataframe with symptom scores + qualitative
         rows = []
         for r in all_records:
             row = {
-                "row_id": r["row_id"],
+                "report_id": r["report_id"],
                 "study_id": r["study_id"],
                 "annotator": r["annotator"],
-                "source_file": r["source_file"],  # visible only to admin
+                "source_file": r["source_file"],
                 "report_text": r["report_text"],
             }
+            # Add symptoms
             row.update(r["symptom_scores"])
+            # Add qualitative (if any)
             row["confidence"] = r["qualitative"].get("confidence", "")
             row["difficult_symptoms"] = r["qualitative"].get("difficult_symptoms", "")
             row["extra_info_needed"] = r["qualitative"].get("extra_info_needed", "")
