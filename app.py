@@ -165,6 +165,7 @@ if page == "Annotate":
             st.subheader("Symptom Evaluation")
             st.write(
                 "Please review the report, then assign a score for each listed symptom. "
+                "Please note, you must assign a score for every symptom before proceeding.\n\n"
                 "Use the following coding scheme:\n\n"
                 "- **0** = Assured absence\n"
                 "- **1** = Assured presence\n"
