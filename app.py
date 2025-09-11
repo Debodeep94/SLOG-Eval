@@ -239,10 +239,18 @@ if page == "Annotate":
 
                 # Qualitative questions (q1 user requested + extras)
                 q1 = st.text_input("Q1. How confident do you feel about your overall evaluation of this report? (1-10)", key=f"q1_{idx}")
-                q2 = st.text_area("Q2. What aspects of this case were most challenging or unclear?", key=f"q2_{idx}")
-                q3 = st.text_area("Q3. Is there any additional information (e.g., prior studies, clinical notes) you would have liked?", key=f"q3_{idx}")
+                q2 = st.text_area("Q2. Were there any symptoms that were particularly difficult to score?",SYMPTOMS, key=f"q2_{idx}\n\n")
+                q3 = st.text_area("Q3. Do you think additional information (like clinical history) would help?", key=f"q3_{idx}")
                 q4 = st.text_area("Q4. Briefly explain the rationale behind your key decisions.", key=f"q4_{idx}")
                 q5 = st.text_area("Q5. Did you notice any inconsistencies between the image and the report text? If yes, describe.", key=f"q5_{idx}")
+                
+
+                # Qualitative survey
+    # st.subheader("Qualitative Feedback")
+    # q1 = st.text_area("How confident do you feel about your overall evaluation of this report?")
+    # q2 = st.text_area("Were there any symptoms that were particularly difficult to score? Why?")
+    # q3 = st.text_area("Do you think additional information (like clinical history) would help?")
+    # q4 = st.text_area("Any other feedback or observations?")
 
                 if st.button("Save and Next (Qual)"):
                     qual_answers = {
