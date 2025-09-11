@@ -166,17 +166,15 @@ if page == "Annotate":
             st.write(
                 "Please review the report, then assign a score for each listed symptom. "
                 "Please note, you must assign a score for every symptom before proceeding.\n\n"
-                "The 'Assured presence' (Yes) option should be selected only when the report explicitly confirms the presence of the symptom. "
-                "If the report does not mention the symptom or indicates its absence, select 'Assured absence' (No). "
-                "If the report is ambiguous or does not provide enough information to determine the presence or absence of the symptom, select 'Ambiguous / uncertain' (May be).\n\n"
+                
                 "Use the following coding scheme:\n\n"
                 "- **Yes** = Assured presence\n"
                 "- **No** = Assured absence\n"
                 "- **May be** = Ambiguous / uncertain"
-                "The 'Assured presence' (Yes) option should be selected only when the report explicitly confirms the presence of the symptom. "
-                "If the report does not mention the symptom or indicates its absence, select 'Assured absence' (No). "
+                "The 'Assured presence' (Yes) option should be selected only when the report explicitly confirms the presence of the symptom.\n\n "
+                "If the report does not mention the symptom or indicates its absence, select 'Assured absence' (No). \n\n"
                 "If the report is ambiguous or does not provide enough information to determine the presence or absence of the symptom, select 'Ambiguous / uncertain' (May be).\n\n"
-            )
+                )
 
             scores = {}
             for symptom in SYMPTOMS:
