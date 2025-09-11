@@ -239,7 +239,7 @@ if page == "Annotate":
 
                 # Qualitative questions (q1 user requested + extras)
                 q1 = st.text_input("Q1. How confident do you feel about your overall evaluation of this report? (1-10)", key=f"q1_{idx}")
-                q2 = st.text_area("Q2. Were there any symptoms that were particularly difficult to score?",SYMPTOMS, key=f"q2_{idx}\n\n")
+                q2 = st.text_area("Q2. Were there any symptoms that were particularly difficult to score {SYMPTOMS}?", key=f"q2_{idx}\n\n")
                 q3 = st.text_area("Q3. Do you think additional information (like clinical history) would help?", key=f"q3_{idx}")
                 q4 = st.text_area("Q4. Briefly explain the rationale behind your key decisions.", key=f"q4_{idx}")
                 q5 = st.text_area("Q5. Did you notice any inconsistencies between the image and the report text? If yes, describe.", key=f"q5_{idx}")
