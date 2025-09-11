@@ -170,7 +170,7 @@ if page == "Annotate":
                 "Use the following coding scheme:\n\n"
                 "- **Yes** = Assured presence\n"
                 "- **No** = Assured absence\n"
-                "- **May be** = Ambiguous / uncertain"
+                "- **May be** = Ambiguous / uncertain\n\n"
                 "The 'Assured presence' (Yes) option should be selected only when the report explicitly confirms the presence of the symptom.\n\n "
                 "If the report does not mention the symptom or indicates its absence, select 'Assured absence' (No). \n\n"
                 "If the report is ambiguous or does not provide enough information to determine the presence or absence of the symptom, select 'Ambiguous / uncertain' (May be).\n\n"
