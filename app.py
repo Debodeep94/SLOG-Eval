@@ -244,7 +244,7 @@ if page == "Annotate":
                         f"Q2. Were there any symptoms that were particularly difficult to score?\n\nOptions: {symptom_list_str}",
                         key=f"q2_{idx}"
                     )
-                q3 = st.text_area("Q3. Do you think additional information (like clinical history) would help?", key=f"q3_{idx}")
+                q3 = st.text_area("Q3. Do you think additional information (like clinical history) would help? (Yes/ No)", key=f"q3_{idx}")
                 q4 = st.text_area("Q4. Briefly explain the rationale behind your key decisions.", key=f"q4_{idx}")
                 q5 = st.text_area("Q5. Did you notice any inconsistencies between the image and the report text? If yes, describe.", key=f"q5_{idx}")
                 
