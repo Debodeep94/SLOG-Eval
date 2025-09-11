@@ -246,7 +246,7 @@ if page == "Annotate":
                     )
                 q3 = st.text_area("Q3. Do you think additional information (like clinical history) would help? (Yes/ No)", key=f"q3_{idx}")
                 q4 = st.text_area("Q4. Briefly explain the rationale behind your key decisions.", key=f"q4_{idx}")
-                q5 = st.text_area("Q5. Did you notice any inconsistencies between the image and the report text? If yes, describe.", key=f"q5_{idx}")
+                q5 = st.text_area("Q5. Did you notice any inconsistencies between the image and the report text? If yes, describe. Otherwise 'No'", key=f"q5_{idx}")
                 
 
                 # Qualitative survey
