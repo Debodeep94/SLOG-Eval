@@ -181,7 +181,7 @@ if page == "Annotate":
             for symptom in SYMPTOMS:
                 selected = st.radio(
                     label=symptom,
-                    options=[0, 1, 2],
+                    options=['Yes', 'No', 'May be'],
                     horizontal=True,
                     key=f"quant_{idx}_{symptom}"
                 )
