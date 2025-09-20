@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import json
 import os
 import glob
@@ -160,6 +161,8 @@ if page == "Annotate":
             st.write(
                 "Please review the report, then assign a score for each listed symptom. "
                 "You must assign a score for every symptom before proceeding.\n\n"
+                "You can leave a symptom blank if it's not mentioned in the report.\n\n"
+                "Scoring options:\n"
                 "- **Yes** = Assured presence\n"
                 "- **No** = Assured absence\n"
                 "- **May be** = Ambiguous / uncertain\n"
@@ -169,11 +172,12 @@ if page == "Annotate":
             for symptom in SYMPTOMS:
                 selected = st.radio(
                     label=symptom,
-                    options=['Yes', 'No', 'May be'],
+                    options=['', 'Yes', 'No', 'May be'],  # '' means no choice
                     horizontal=True,
                     key=f"quant_{idx}_{symptom}"
                 )
-                scores[symptom] = selected
+                # Store as NaN if left blank
+            scores[symptom] = np.nan if selected == '' else selected
 
             if st.button("Save and Next (Quant)"):
                 result = {
