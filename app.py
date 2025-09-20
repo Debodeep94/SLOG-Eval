@@ -177,7 +177,7 @@ if page == "Annotate":
                     key=f"quant_{idx}_{symptom}"
                 )
                 # Store as NaN if left blank
-            scores[symptom] = np.nan if selected == '' else selected
+                scores[symptom] = np.nan if selected == '' else selected
 
             if st.button("Save and Next (Quant)"):
                 result = {
