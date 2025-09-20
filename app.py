@@ -187,6 +187,9 @@ if page == "Annotate":
         st.text_area("Report Text", report_text, height=220)
 
         st.subheader("Symptom Evaluation")
+        st.text("For each symptom below, select 'Yes', 'No', or 'May be'. Leave blank if unsure.")
+        st.text("Yes = definitely present, No = definitely absent, May be = possibly present")
+        st.text("Yes/No/May be options must be adapted from the radology report.")
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(label=symptom, options=['', 'Yes', 'No', 'May be'],
