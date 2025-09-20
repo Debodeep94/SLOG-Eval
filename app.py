@@ -20,6 +20,7 @@ NUM_QUAL_STUDY_IDS = 5
 SHEET_URL = st.secrets["gsheet"]["url"]
 
 @st.cache_resource
+@st.cache_resource
 def connect_gsheet():
     try:
         creds = Credentials.from_service_account_info(
@@ -33,8 +34,11 @@ def connect_gsheet():
         sh = client.open_by_url(SHEET_URL)
         return sh
     except Exception as e:
-        st.error(f"❌ Could not connect to Google Sheets. Error: {e}")
+        import traceback
+        st.error("❌ Could not connect to Google Sheets.")
+        st.text(traceback.format_exc())  # <-- print full stack trace
         st.stop()
+
 
 def ensure_annotations_sheet(sh):
     """Make sure 'Annotations' worksheet exists with headers."""
