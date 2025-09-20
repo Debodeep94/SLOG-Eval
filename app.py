@@ -4,6 +4,8 @@ import json
 import os
 import glob
 from typing import List
+import gspread
+from google.oauth2.service_account import Credentials
 
 # === CONFIG ===
 SYMPTOMS: List[str] = [
@@ -18,6 +20,31 @@ NUM_QUAL_STUDY_IDS = 5      # number of study_ids to reserve (both df1 & df2) fo
 
 # === Credentials from secrets.toml ===
 USERS = st.secrets["credentials"]
+
+# === Google Sheets setup ===
+SPREADSHEET_ID = "14IpooUA0vA50udo2Xw6T8iRpk9jTYM0AQwue1MJdrbI"  # <-- replace with your Sheet ID
+
+@st.cache_resource
+def get_gsheet_client():
+    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"])
+    client = gspread.authorize(creds)
+    return client
+
+def append_to_gsheet(row_dict, sheet_name="Sheet1"):
+    client = get_gsheet_client()
+    sh = client.open_by_key(SPREADSHEET_ID)
+    try:
+        worksheet = sh.worksheet(sheet_name)
+    except gspread.WorksheetNotFound:
+        worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="20")
+    # Convert dict to row list (consistent column order)
+    existing_headers = worksheet.row_values(1)
+    if not existing_headers:
+        headers = list(row_dict.keys())
+        worksheet.append_row(headers)
+        existing_headers = headers
+    row = [row_dict.get(col, "") for col in existing_headers]
+    worksheet.append_row(row)
 
 # === Session state defaults ===
 if "logged_in" not in st.session_state:
@@ -47,7 +74,6 @@ if not st.session_state.logged_in:
 
 # === Load data and prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
-    # Load original dataframes
     df1 = pd.read_csv("selected_samples.csv")
     df1["source_file"] = "selected_samples.csv"
     df1["source_label"] = "df1"
@@ -56,56 +82,43 @@ if "prepared" not in st.session_state:
     df2["source_file"] = "selected_samples00.csv"
     df2["source_label"] = "df2"
 
-    # Basic sanity checks
     required_cols = {"study_id", "reports_preds"}
     if not required_cols.issubset(df1.columns) or not required_cols.issubset(df2.columns):
         st.error(f"Missing required columns in input files. Required: {required_cols}")
         st.stop()
 
-    # find study_ids present in both
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
     if len(common_ids) == 0:
         st.error("No overlapping study_id values between selected_samples.csv and selected_samples00.csv")
         st.stop()
 
-    # Deterministic per-user seed so the same user resumes the same split
     user_seed = abs(hash(st.session_state.username)) % (2**32)
-
-    # Sample NUM_QUAL_STUDY_IDS from common_ids for qualitative (if available)
     n_pick = min(NUM_QUAL_STUDY_IDS, len(common_ids))
     chosen_ids = pd.Series(common_ids).sample(n=n_pick, random_state=user_seed).tolist()
 
-    # Build qualitative (paired) set: both df1 and df2 rows for chosen_ids
     df1_qual = df1[df1["study_id"].isin(chosen_ids)].copy()
     df2_qual = df2[df2["study_id"].isin(chosen_ids)].copy()
     qual_df = pd.concat([df1_qual, df2_qual], ignore_index=True)
-    # create uid
     qual_df["uid"] = qual_df["study_id"].astype(str) + "__" + qual_df["source_label"]
 
-    # Build pool for quantitative: everything except the qual rows
     df1_pool = df1[~df1["study_id"].isin(chosen_ids)].copy()
     df2_pool = df2[~df2["study_id"].isin(chosen_ids)].copy()
     pool_df = pd.concat([df1_pool, df2_pool], ignore_index=True)
     pool_df["uid"] = pool_df["study_id"].astype(str) + "__" + pool_df["source_label"]
 
-    # shuffle pool deterministically per user
     pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
 
-    # pick first QUANT_TARGET_REPORTS rows for quantitative. If not enough rows available, use all.
     if len(pool_df) < QUANT_TARGET_REPORTS:
         st.warning(f"Pool only has {len(pool_df)} reports available (less than requested {QUANT_TARGET_REPORTS}). Using {len(pool_df)} for quantitative.")
     quant_df = pool_df.iloc[:min(QUANT_TARGET_REPORTS, len(pool_df))].reset_index(drop=True)
 
-    # Final lists
     st.session_state.quant_df = quant_df
     st.session_state.qual_df = qual_df.reset_index(drop=True)
     st.session_state.prepared = True
 
-    # Create dirs
     os.makedirs("annotations/quant", exist_ok=True)
     os.makedirs("annotations/qual", exist_ok=True)
 
-    # Resume logic: count how many quant/qual files user already saved
     user = st.session_state.username
     quant_done = len(glob.glob(f"annotations/quant/*_{user}.json"))
     qual_done = len(glob.glob(f"annotations/qual/*_{user}.json"))
@@ -132,7 +145,6 @@ else:
     pages = ["Annotate"]
 page = st.sidebar.radio("📂 Navigation", pages)
 
-# Helper to get row safely
 def row_safe(df, i):
     if i < 0 or i >= len(df):
         return None
@@ -145,13 +157,11 @@ if page == "Annotate":
         if total_quant == 0:
             st.error("No reports available for quantitative phase (after reserving qualitative pairs).")
         else:
-            # show progress as Patient Report X of 60
             display_idx = idx + 1
             st.header(f"Patient Report {display_idx} of {total_quant} - ID: {quant_df.at[idx, 'study_id'] if idx < total_quant else 'N/A'}")
             row = row_safe(quant_df, idx)
             if row is None:
                 st.info("Quantitative phase complete. Moving to qualitative...")
-                # switch
                 st.session_state.phase = "qual"
                 st.session_state.current_index = len(glob.glob(f"annotations/qual/*_{st.session_state.username}.json"))
                 st.rerun()
@@ -164,18 +174,7 @@ if page == "Annotate":
             st.text_area("Report Text (quantitative phase — no image shown)", report_text, height=220)
 
             st.subheader("Symptom Evaluation")
-            st.write(
-                "Please review the report, then assign a score for each listed symptom. "
-                "Please note, you must assign a score for every symptom before proceeding.\n\n"
-                
-                "Use the following coding scheme:\n\n"
-                "- **Yes** = Assured presence\n"
-                "- **No** = Assured absence\n"
-                "- **May be** = Ambiguous / uncertain\n\n"
-                "The 'Assured presence' (Yes) option should be selected only when the report explicitly confirms the presence of the symptom.\n\n "
-                "If the report does not mention the symptom or indicates its absence, select 'Assured absence' (No). \n\n"
-                "If the report is ambiguous or does not provide enough information to determine the presence or absence of the symptom, select 'Ambiguous / uncertain' (May be).\n\n"
-                )
+            st.write("Please review the report, then assign a score for each listed symptom.")
 
             scores = {}
             for symptom in SYMPTOMS:
@@ -203,10 +202,13 @@ if page == "Annotate":
                     json.dump(result, f, indent=2)
                 st.success("✅ Saved quantitative annotation.")
 
-                # advance
-                st.session_state.current_index += 1
+                flat_result = {**result}
+                for k, v in scores.items():
+                    flat_result[f"symptom_{k}"] = v
+                del flat_result["symptom_scores"]
+                append_to_gsheet(flat_result, sheet_name="Quantitative")
 
-                # if completed quant target, switch to qual
+                st.session_state.current_index += 1
                 if st.session_state.current_index >= len(quant_df):
                     st.session_state.phase = "qual"
                     st.session_state.current_index = len(glob.glob(f"annotations/qual/*_{st.session_state.username}.json"))
@@ -221,7 +223,6 @@ if page == "Annotate":
                 st.header("Phase: Qualitative")
                 st.info("🎉 You have completed all qualitative items for this set.")
             else:
-                # show qualitative item: here we show image + report + qualitative questions
                 row = row_safe(qual_df, idx)
                 study_id = row["study_id"]
                 source_file = row.get("source_file", "")
@@ -238,23 +239,11 @@ if page == "Annotate":
 
                 st.text_area("Report Text", report_text, height=220)
 
-                # Qualitative questions (q1 user requested + extras)
-                q1 = st.text_input("Q1. How confident do you feel about your overall evaluation of this report? (1-10)", key=f"q1_{idx}")
-                q2 = st.text_area(
-                        f"Q2. Were there any symptoms that were particularly difficult to score?\n\nOptions: {symptom_list_str}",
-                        key=f"q2_{idx}"
-                    )
-                q3 = st.text_area("Q3. Do you think additional information (like clinical history) would help? (Yes/ No)", key=f"q3_{idx}")
-                q4 = st.text_area("Q4. Briefly explain the rationale behind your key decisions.", key=f"q4_{idx}")
-                q5 = st.text_area("Q5. Did you notice any inconsistencies between the image and the report text? If yes, describe. Otherwise 'No'", key=f"q5_{idx}")
-                
-
-                # Qualitative survey
-    # st.subheader("Qualitative Feedback")
-    # q1 = st.text_area("How confident do you feel about your overall evaluation of this report?")
-    # q2 = st.text_area("Were there any symptoms that were particularly difficult to score? Why?")
-    # q3 = st.text_area("Do you think additional information (like clinical history) would help?")
-    # q4 = st.text_area("Any other feedback or observations?")
+                q1 = st.text_input("Q1. How confident are you? (1-10)", key=f"q1_{idx}")
+                q2 = st.text_area(f"Q2. Difficult symptoms? Options: {symptom_list_str}", key=f"q2_{idx}")
+                q3 = st.text_area("Q3. Would clinical history help? (Yes/No)", key=f"q3_{idx}")
+                q4 = st.text_area("Q4. Rationale behind decisions.", key=f"q4_{idx}")
+                q5 = st.text_area("Q5. Inconsistencies between image and report?", key=f"q5_{idx}")
 
                 if st.button("Save and Next (Qual)"):
                     qual_answers = {
@@ -279,27 +268,58 @@ if page == "Annotate":
                     with open(out_path, "w") as f:
                         json.dump(result, f, indent=2)
                     st.success("✅ Saved qualitative annotation.")
+
+                    flat_result = {**result}
+                    for k, v in qual_answers.items():
+                        flat_result[k] = v
+                    del flat_result["qualitative_answers"]
+                    append_to_gsheet(flat_result, sheet_name="Qualitative")
+
                     st.session_state.current_index += 1
                     st.rerun()
 
 # === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
-    quant_files = glob.glob("annotations/quant/*.json")
-    qual_files = glob.glob("annotations/qual/*.json")
+    mode = st.radio("Data source", ["Local JSON", "Google Sheet"])
 
-    if not quant_files and not qual_files:
-        st.info("No annotations found yet.")
+    if mode == "Local JSON":
+        quant_files = glob.glob("annotations/quant/*.json")
+        qual_files = glob.glob("annotations/qual/*.json")
+
+        if not quant_files and not qual_files:
+            st.info("No annotations found yet.")
+        else:
+            records = []
+            for f in quant_files + qual_files:
+                with open(f) as infile:
+                    records.append(json.load(infile))
+            df = pd.json_normalize(records)
+            st.dataframe(df)
+            st.download_button(
+                "⬇️ Download all annotations as CSV",
+                df.to_csv(index=False).encode("utf-8"),
+                file_name="survey_results.csv",
+                mime="text/csv"
+            )
     else:
-        records = []
-        for f in quant_files + qual_files:
-            with open(f) as infile:
-                records.append(json.load(infile))
-        df = pd.json_normalize(records)
-        st.dataframe(df)
-        st.download_button(
-            "⬇️ Download all annotations as CSV",
-            df.to_csv(index=False).encode("utf-8"),
-            file_name="survey_results.csv",
-            mime="text/csv"
-        )
+        client = get_gsheet_client()
+        sh = client.open_by_key(SPREADSHEET_ID)
+        all_dfs = []
+        for ws in sh.worksheets():
+            rows = ws.get_all_records()
+            if rows:
+                df = pd.DataFrame(rows)
+                df["sheet"] = ws.title
+                all_dfs.append(df)
+        if all_dfs:
+            df = pd.concat(all_dfs, ignore_index=True)
+            st.dataframe(df)
+            st.download_button(
+                "⬇️ Download results from Google Sheets",
+                df.to_csv(index=False).encode("utf-8"),
+                file_name="survey_results_from_gsheet.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No records found in Google Sheet yet.")
