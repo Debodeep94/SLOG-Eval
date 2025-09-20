@@ -252,17 +252,44 @@ if page == "Annotate":
                 st.rerun()
 
 # === Review Results page ===
+# === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
-    quant_files = list_gist_files("quant", user)
-    qual_files = list_gist_files("qual", user)
+    
+    # Admin can see all users, others see only their own
+    if st.session_state.username == "admin":
+        quant_files = list_gist_files("quant", user=None)
+        qual_files = list_gist_files("qual", user=None)
+    else:
+        user = st.session_state.username
+        quant_files = list_gist_files("quant", user)
+        qual_files = list_gist_files("qual", user)
+
     records = [load_annotation_from_gist(f) for f in quant_files + qual_files if load_annotation_from_gist(f)]
+
     if records:
-        df = pd.json_normalize(records)
+        # Flatten symptom_scores dict into separate columns
+        df = pd.json_normalize(records, sep='.')
+
+        # Optional: order columns for quantitative annotations
+        quant_cols = [
+            "report_number_in_quant", "study_id", "report_text", "annotator", 
+            "source_file", "source_label"
+        ] + [f"symptom_scores.{s}" for s in SYMPTOMS]
+
+        # Keep only columns that exist (some qual records won’t have symptom_scores)
+        quant_cols = [c for c in quant_cols if c in df.columns]
+
+        df = df[quant_cols + [c for c in df.columns if c not in quant_cols]]
+
         st.dataframe(df)
-        st.download_button("⬇️ Download all annotations as CSV",
-                           df.to_csv(index=False).encode("utf-8"),
-                           file_name="survey_results.csv",
-                           mime="text/csv")
+
+        st.download_button(
+            "⬇️ Download all annotations as CSV",
+            df.to_csv(index=False).encode("utf-8"),
+            file_name="survey_results.csv",
+            mime="text/csv"
+        )
     else:
         st.info("No annotations found yet.")
+
