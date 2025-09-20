@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import json
-import os
-import glob
 from typing import List
+import requests
 
 # === CONFIG ===
 SYMPTOMS: List[str] = [
@@ -14,8 +13,42 @@ SYMPTOMS: List[str] = [
     'Pneumonia','Pneumothorax','Support Devices'
 ]
 symptom_list_str = ", ".join(SYMPTOMS)
-QUANT_TARGET_REPORTS = 60   # number of patient reports (questions) in quantitative phase
-NUM_QUAL_STUDY_IDS = 5      # number of study_ids to reserve (both df1 & df2) for qualitative
+QUANT_TARGET_REPORTS = 60
+NUM_QUAL_STUDY_IDS = 5
+
+# === GitHub Gist setup ===
+GIST_ID = "YOUR_GIST_ID"  # create a gist and put its ID here
+
+def get_headers():
+    return {"Authorization": f"token {st.secrets['github']['token']}"}
+
+def save_annotation_to_gist(phase, filename, data):
+    url = f"https://api.github.com/gists/{GIST_ID}"
+    payload = {
+        "files": {
+            f"{phase}/{filename}": {"content": json.dumps(data, indent=2)}
+        }
+    }
+    resp = requests.patch(url, headers=get_headers(), json=payload)
+    return resp.status_code == 200
+
+def list_gist_files(phase, user):
+    url = f"https://api.github.com/gists/{GIST_ID}"
+    resp = requests.get(url, headers=get_headers())
+    if resp.status_code != 200:
+        return []
+    files = resp.json()["files"]
+    return [f for f in files if f.startswith(f"{phase}/") and f.endswith(f"_{user}.json")]
+
+def load_annotation_from_gist(filename):
+    url = f"https://api.github.com/gists/{GIST_ID}"
+    resp = requests.get(url, headers=get_headers())
+    if resp.status_code != 200:
+        return None
+    files = resp.json()["files"]
+    if filename in files:
+        return json.loads(files[filename]["content"])
+    return None
 
 # === Credentials from secrets.toml ===
 USERS = st.secrets["credentials"]
@@ -44,7 +77,6 @@ if not st.session_state.logged_in:
 
 # === Load data and prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
-    # Load original dataframes
     df1 = pd.read_csv("selected_samples.csv")
     df1["source_file"] = "selected_samples.csv"
     df1["source_label"] = "df1"
@@ -53,82 +85,62 @@ if "prepared" not in st.session_state:
     df2["source_file"] = "selected_samples00.csv"
     df2["source_label"] = "df2"
 
-    # Basic sanity checks
     required_cols = {"study_id", "reports_preds"}
     if not required_cols.issubset(df1.columns) or not required_cols.issubset(df2.columns):
         st.error(f"Missing required columns in input files. Required: {required_cols}")
         st.stop()
 
-    # find study_ids present in both
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
     if len(common_ids) == 0:
         st.error("No overlapping study_id values between selected_samples.csv and selected_samples00.csv")
         st.stop()
 
-    # Deterministic per-user seed so the same user resumes the same split
     user_seed = abs(hash(st.session_state.username)) % (2**32)
-
-    # Sample NUM_QUAL_STUDY_IDS from common_ids for qualitative (if available)
     n_pick = min(NUM_QUAL_STUDY_IDS, len(common_ids))
     chosen_ids = pd.Series(common_ids).sample(n=n_pick, random_state=user_seed).tolist()
 
-    # Build qualitative (paired) set: both df1 and df2 rows for chosen_ids
     df1_qual = df1[df1["study_id"].isin(chosen_ids)].copy()
     df2_qual = df2[df2["study_id"].isin(chosen_ids)].copy()
     qual_df = pd.concat([df1_qual, df2_qual], ignore_index=True)
     qual_df["uid"] = qual_df["study_id"].astype(str) + "__" + qual_df["source_label"]
 
-    # Build pool for quantitative: everything except the qual rows
     df1_pool = df1[~df1["study_id"].isin(chosen_ids)].copy()
     df2_pool = df2[~df2["study_id"].isin(chosen_ids)].copy()
     pool_df = pd.concat([df1_pool, df2_pool], ignore_index=True)
     pool_df["uid"] = pool_df["study_id"].astype(str) + "__" + pool_df["source_label"]
-
-    # shuffle pool deterministically per user
     pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
 
-    # pick first QUANT_TARGET_REPORTS rows for quantitative
-    if len(pool_df) < QUANT_TARGET_REPORTS:
-        st.warning(f"Pool only has {len(pool_df)} reports available (less than requested {QUANT_TARGET_REPORTS}). Using {len(pool_df)} for quantitative.")
     quant_df = pool_df.iloc[:min(QUANT_TARGET_REPORTS, len(pool_df))].reset_index(drop=True)
 
-    # Final lists
     st.session_state.quant_df = quant_df
     st.session_state.qual_df = qual_df.reset_index(drop=True)
     st.session_state.prepared = True
 
-    # Create dirs
-    os.makedirs("annotations/quant", exist_ok=True)
-    os.makedirs("annotations/qual", exist_ok=True)
-
-# === Resume logic: always recompute progress from saved JSON files ===
+# === Resume logic using Gist ===
 user = st.session_state.username
-quant_done = len(glob.glob(f"annotations/quant/*_{user}.json"))
-qual_done = len(glob.glob(f"annotations/qual/*_{user}.json"))
+quant_done_files = list_gist_files("quant", user)
+qual_done_files = list_gist_files("qual", user)
 
-if quant_done >= len(st.session_state.quant_df):
+if len(quant_done_files) >= len(st.session_state.quant_df):
     st.session_state.phase = "qual"
-    st.session_state.current_index = qual_done
+    st.session_state.current_index = len(qual_done_files)
 else:
     st.session_state.phase = "quant"
-    st.session_state.current_index = quant_done
+    st.session_state.current_index = len(quant_done_files)
 
-# Shortcuts
-quant_df: pd.DataFrame = st.session_state.quant_df
-qual_df: pd.DataFrame = st.session_state.qual_df
+quant_df = st.session_state.quant_df
+qual_df = st.session_state.qual_df
 phase = st.session_state.phase
 idx = st.session_state.current_index
 
 # === Sidebar & nav ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
+pages = ["Annotate"]
 if st.session_state.username == "admin":
     st.sidebar.warning("⚠️ Admin mode: You can review all annotations.")
-    pages = ["Annotate", "Review Results"]
-else:
-    pages = ["Annotate"]
+    pages.append("Review Results")
 page = st.sidebar.radio("📂 Navigation", pages)
 
-# Helper to get row safely
 def row_safe(df, i):
     if i < 0 or i >= len(df):
         return None
@@ -139,15 +151,14 @@ if page == "Annotate":
     if phase == "quant":
         total_quant = len(quant_df)
         if total_quant == 0:
-            st.error("No reports available for quantitative phase (after reserving qualitative pairs).")
+            st.error("No reports available for quantitative phase.")
         else:
             display_idx = idx + 1
-            st.header(f"Patient Report {display_idx} of {total_quant} - ID: {quant_df.at[idx, 'study_id'] if idx < total_quant else 'N/A'}")
             row = row_safe(quant_df, idx)
             if row is None:
                 st.info("Quantitative phase complete. Moving to qualitative...")
                 st.session_state.phase = "qual"
-                st.session_state.current_index = len(glob.glob(f"annotations/qual/*_{st.session_state.username}.json"))
+                st.session_state.current_index = len(list_gist_files("qual", user))
                 st.rerun()
 
             report_text = row["reports_preds"]
@@ -155,28 +166,22 @@ if page == "Annotate":
             source_file = row.get("source_file", "")
             source_label = row.get("source_label", "")
 
+            st.header(f"Patient Report {display_idx} of {total_quant} - ID: {study_id}")
             st.text_area("Report Text (quantitative phase — no image shown)", report_text, height=220)
-
             st.subheader("Symptom Evaluation")
             st.write(
-                "Please review the report, then assign a score for each listed symptom. "
-                "You must assign a score for every symptom before proceeding.\n\n"
-                "You can leave a symptom blank if it's not mentioned in the report.\n\n"
-                "Scoring options:\n"
-                "- **Yes** = Assured presence\n"
-                "- **No** = Assured absence\n"
-                "- **May be** = Ambiguous / uncertain\n"
+                "Assign a score for each symptom. Leave blank if not mentioned.\n"
+                "Options: '', 'Yes', 'No', 'May be'"
             )
 
             scores = {}
             for symptom in SYMPTOMS:
                 selected = st.radio(
                     label=symptom,
-                    options=['', 'Yes', 'No', 'May be'],  # '' means no choice
+                    options=['', 'Yes', 'No', 'May be'],
                     horizontal=True,
                     key=f"quant_{idx}_{symptom}"
                 )
-                # Store as NaN if left blank
                 scores[symptom] = np.nan if selected == '' else selected
 
             if st.button("Save and Next (Quant)"):
@@ -186,13 +191,12 @@ if page == "Annotate":
                     "study_id": study_id,
                     "report_text": report_text,
                     "symptom_scores": scores,
-                    "annotator": st.session_state.username,
+                    "annotator": user,
                     "source_file": source_file,
                     "source_label": source_label,
                 }
-                out_path = f"annotations/quant/{row['uid']}_{st.session_state.username}.json"
-                with open(out_path, "w") as f:
-                    json.dump(result, f, indent=2)
+                filename = f"{row['uid']}_{user}.json"
+                save_annotation_to_gist("quant", filename, result)
                 st.success("✅ Saved quantitative annotation.")
                 st.rerun()
 
@@ -200,75 +204,60 @@ if page == "Annotate":
         total_qual = len(qual_df)
         if total_qual == 0:
             st.info("No qualitative paired cases reserved.")
+        elif idx >= total_qual:
+            st.header("Phase: Qualitative")
+            st.info("🎉 You have completed all qualitative items for this set.")
         else:
-            if idx >= total_qual:
-                st.header("Phase: Qualitative")
-                st.info("🎉 You have completed all qualitative items for this set.")
-            else:
-                row = row_safe(qual_df, idx)
-                study_id = row["study_id"]
-                source_file = row.get("source_file", "")
-                source_label = row.get("source_label", "")
-                report_text = row["reports_preds"]
-                img_path = row.get("paths", None)
+            row = row_safe(qual_df, idx)
+            study_id = row["study_id"]
+            report_text = row["reports_preds"]
+            img_path = row.get("paths", None)
+            source_file = row.get("source_file", "")
+            source_label = row.get("source_label", "")
 
-                st.header(f"Qualitative — Case {idx+1} of {total_qual}")
-                st.subheader(f"Patient ID: {study_id}  •  source: {source_label}")
-                if img_path and str(img_path).strip() != "":
-                    st.image(img_path, caption=f"CXR — study {study_id}", use_container_width=True)
-                else:
-                    st.info("No image path available for this case.")
+            st.header(f"Qualitative — Case {idx+1} of {total_qual}")
+            st.subheader(f"Patient ID: {study_id} • source: {source_label}")
+            if img_path:
+                st.image(img_path, caption=f"CXR — study {study_id}", use_container_width=True)
+            st.text_area("Report Text", report_text, height=220)
 
-                st.text_area("Report Text", report_text, height=220)
+            q1 = st.text_input("Q1. Confidence (1-10)", key=f"q1_{idx}")
+            q2 = st.text_area(f"Q2. Difficult symptoms? Options: {symptom_list_str}", key=f"q2_{idx}")
+            q3 = st.text_area("Q3. Additional info needed? (Yes/No)", key=f"q3_{idx}")
+            q4 = st.text_area("Q4. Rationale for key decisions", key=f"q4_{idx}")
+            q5 = st.text_area("Q5. Inconsistencies between image and text?", key=f"q5_{idx}")
 
-                # Qualitative questions
-                q1 = st.text_input("Q1. How confident do you feel about your overall evaluation of this report? (1-10)", key=f"q1_{idx}")
-                q2 = st.text_area(
-                    f"Q2. Were there any symptoms that were particularly difficult to score?\n\nOptions: {symptom_list_str}",
-                    key=f"q2_{idx}"
-                )
-                q3 = st.text_area("Q3. Do you think additional information (like clinical history) would help? (Yes/ No)", key=f"q3_{idx}")
-                q4 = st.text_area("Q4. Briefly explain the rationale behind your key decisions.", key=f"q4_{idx}")
-                q5 = st.text_area("Q5. Did you notice any inconsistencies between the image and the report text? If yes, describe. Otherwise 'No'", key=f"q5_{idx}")
-
-                if st.button("Save and Next (Qual)"):
-                    qual_answers = {
-                        "q1_confidence_1_10": q1,
-                        "q2_challenges": q2,
-                        "q3_additional_info": q3,
-                        "q4_rationale": q4,
-                        "q5_inconsistencies": q5,
-                    }
-                    result = {
-                        "phase": "qual",
-                        "qual_case_number": idx + 1,
-                        "study_id": study_id,
-                        "report_text": report_text,
-                        "image_path": img_path,
-                        "qualitative_answers": qual_answers,
-                        "annotator": st.session_state.username,
-                        "source_file": source_file,
-                        "source_label": source_label,
-                    }
-                    out_path = f"annotations/qual/{row['uid']}_{st.session_state.username}.json"
-                    with open(out_path, "w") as f:
-                        json.dump(result, f, indent=2)
-                    st.success("✅ Saved qualitative annotation.")
-                    st.rerun()
+            if st.button("Save and Next (Qual)"):
+                qual_answers = {
+                    "q1_confidence_1_10": q1,
+                    "q2_challenges": q2,
+                    "q3_additional_info": q3,
+                    "q4_rationale": q4,
+                    "q5_inconsistencies": q5,
+                }
+                result = {
+                    "phase": "qual",
+                    "qual_case_number": idx + 1,
+                    "study_id": study_id,
+                    "report_text": report_text,
+                    "image_path": img_path,
+                    "qualitative_answers": qual_answers,
+                    "annotator": user,
+                    "source_file": source_file,
+                    "source_label": source_label,
+                }
+                filename = f"{row['uid']}_{user}.json"
+                save_annotation_to_gist("qual", filename, result)
+                st.success("✅ Saved qualitative annotation.")
+                st.rerun()
 
 # === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
-    quant_files = glob.glob("annotations/quant/*.json")
-    qual_files = glob.glob("annotations/qual/*.json")
-
-    if not quant_files and not qual_files:
-        st.info("No annotations found yet.")
-    else:
-        records = []
-        for f in quant_files + qual_files:
-            with open(f) as infile:
-                records.append(json.load(infile))
+    quant_files = list_gist_files("quant", user)
+    qual_files = list_gist_files("qual", user)
+    records = [load_annotation_from_gist(f) for f in quant_files + qual_files if load_annotation_from_gist(f)]
+    if records:
         df = pd.json_normalize(records)
         st.dataframe(df)
         st.download_button(
@@ -277,3 +266,5 @@ elif page == "Review Results":
             file_name="survey_results.csv",
             mime="text/csv"
         )
+    else:
+        st.info("No annotations found yet.")
