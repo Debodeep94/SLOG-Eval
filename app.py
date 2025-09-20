@@ -22,13 +22,19 @@ NUM_QUAL_STUDY_IDS = 5
 SHEET_URL = st.secrets["gsheet"]["url"]
 
 @st.cache_resource
+@st.cache_resource
 def connect_gsheet():
     creds = Credentials.from_service_account_info(
         st.secrets["gcp_service_account"],
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
     client = gspread.authorize(creds)
+    
+    # 👇 Print the email used for auth
+    st.write("Service account email:", st.secrets["gcp_service_account"]["client_email"])
+    
     return client.open_by_url(SHEET_URL)
+
 
 def append_to_gsheet(worksheet_name, row_dict):
     sh = connect_gsheet()
