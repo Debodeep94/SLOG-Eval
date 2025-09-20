@@ -41,9 +41,15 @@ def append_to_gsheet(worksheet_name, row_dict):
         headers = list(row_dict.keys())
         ws.append_row(headers)
 
-    # Match values to headers
-    values = [row_dict.get(h, "") for h in headers]
+    # Sanitize values: replace NaN/None with ""
+    def clean_value(v):
+        if pd.isna(v):
+            return ""
+        return str(v)
+
+    values = [clean_value(row_dict.get(h, "")) for h in headers]
     ws.append_row(values)
+
 
 def load_all_from_gsheet(worksheet_name):
     sh = connect_gsheet()
