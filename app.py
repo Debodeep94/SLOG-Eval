@@ -65,13 +65,18 @@ def save_annotation_to_gist(phase, filename, data):
     resp = requests.patch(url, headers=get_headers(), json=payload)
     return resp.status_code == 200
 
-def list_gist_files(phase, user):
+def list_gist_files(phase, user=None):
     url = f"https://api.github.com/gists/{GIST_ID}"
     resp = requests.get(url, headers=get_headers())
     if resp.status_code != 200:
         return []
     files = resp.json()["files"]
-    return [f for f in files if f.startswith(f"{phase}/") and f.endswith(f"_{user}.json")]
+    result = []
+    for f in files:
+        if f.startswith(f"{phase}/"):
+            if user is None or f.endswith(f"_{user}.json"):
+                result.append(f)
+    return result
 
 def load_annotation_from_gist(filename):
     url = f"https://api.github.com/gists/{GIST_ID}"
