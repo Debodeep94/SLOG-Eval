@@ -1,11 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import json
-import os
-from typing import List
 import gspread
 from google.oauth2.service_account import Credentials
+from typing import List
 
 # === CONFIG ===
 SYMPTOMS: List[str] = [
@@ -22,38 +20,51 @@ NUM_QUAL_STUDY_IDS = 5
 SHEET_URL = st.secrets["gsheet"]["url"]
 
 @st.cache_resource
-@st.cache_resource
 def connect_gsheet():
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
-        scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-]
-    )
-    client = gspread.authorize(creds)
-    
-    # 👇 Print the email used for auth
-    st.write("Service account email:", st.secrets["gcp_service_account"]["client_email"])
-    
-    return client.open_by_url(SHEET_URL)
+    try:
+        creds = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=[
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+        )
+        client = gspread.authorize(creds)
+        sh = client.open_by_url(SHEET_URL)
+        return sh
+    except Exception as e:
+        st.error(f"❌ Could not connect to Google Sheets. Error: {e}")
+        st.stop()
 
+def ensure_annotations_sheet(sh):
+    """Make sure 'Annotations' worksheet exists with headers."""
+    headers = [
+        "phase","report_number_in_quant","qual_case_number",
+        "study_id","report_text","annotator","source_file","source_label"
+    ] + [f"symptom_scores.{s}" for s in SYMPTOMS] + [
+        "q1_confidence_1_10","q2_challenges","q3_additional_info",
+        "q4_rationale","q5_inconsistencies"
+    ]
+    try:
+        ws = sh.worksheet("Annotations")
+    except gspread.exceptions.WorksheetNotFound:
+        ws = sh.add_worksheet(title="Annotations", rows="1000", cols=str(len(headers)))
+        ws.append_row(headers)
+    return ws
 
-def append_to_gsheet(worksheet_name, row_dict):
+def append_to_gsheet(row_dict):
     sh = connect_gsheet()
-    ws = sh.worksheet(worksheet_name)
-    ws.append_row(list(row_dict.values()))
+    ws = ensure_annotations_sheet(sh)
+    ws.append_row([row_dict.get(h, "") for h in ws.row_values(1)])
 
-def load_all_from_gsheet(worksheet_name):
+def load_all_from_gsheet():
     sh = connect_gsheet()
-    ws = sh.worksheet(worksheet_name)
+    ws = ensure_annotations_sheet(sh)
     data = ws.get_all_records()
-    if not data:
-        return pd.DataFrame()
-    return pd.DataFrame(data)
+    return pd.DataFrame(data) if data else pd.DataFrame()
 
 def get_progress_from_gsheet(user):
-    df = load_all_from_gsheet("Annotations")
+    df = load_all_from_gsheet()
     if df.empty:
         return 0, 0
     user_df = df[df["annotator"] == user]
@@ -86,7 +97,7 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# === Load sample data (replace with your CSVs) ===
+# === Load sample CSVs ===
 df1 = pd.read_csv("selected_samples.csv")
 df1["source_file"] = "selected_samples.csv"
 df1["source_label"] = "df1"
@@ -151,7 +162,7 @@ try:
     st.sidebar.write(f"**Qualitative:** {qual_done}/{total_qual}")
 
     if st.session_state.username == "admin":
-        df_all = load_all_from_gsheet("Annotations")
+        df_all = load_all_from_gsheet()
         st.sidebar.write("---")
         st.sidebar.write(f"**Total annotations (all users):** {df_all.shape[0]}")
 except Exception as e:
@@ -167,7 +178,6 @@ def row_safe(df, i):
 # === Annotation page ===
 if page == "Annotate":
     if phase == "quant":
-        total_quant = len(quant_df)
         row = row_safe(quant_df, idx)
         if row is None:
             st.info("Quantitative phase complete. Moving to qualitative...")
@@ -178,10 +188,9 @@ if page == "Annotate":
         report_text = row["reports_preds"]
         study_id = row["study_id"]
 
-        st.header(f"Patient Report {idx+1} of {total_quant} - ID: {study_id}")
+        st.header(f"Patient Report {idx+1} of {len(quant_df)} - ID: {study_id}")
         st.text_area("Report Text", report_text, height=220)
 
-        st.subheader("Symptom Evaluation")
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(label=symptom, options=['', 'Yes', 'No', 'May be'],
@@ -199,21 +208,19 @@ if page == "Annotate":
                 "annotator": user,
                 **{f"symptom_scores.{k}": v for k, v in scores.items()}
             }
-            append_to_gsheet("Annotations", result)
+            append_to_gsheet(result)
             st.success("✅ Saved quantitative annotation.")
             st.rerun()
 
     elif phase == "qual":
-        total_qual = len(qual_df)
-        if idx >= total_qual:
-            st.header("Phase: Qualitative")
+        if idx >= len(qual_df):
             st.info("🎉 You have completed all qualitative items.")
         else:
             row = row_safe(qual_df, idx)
             study_id = row["study_id"]
             report_text = row["reports_preds"]
 
-            st.header(f"Qualitative — Case {idx+1} of {total_qual}")
+            st.header(f"Qualitative — Case {idx+1} of {len(qual_df)}")
             st.subheader(f"Patient ID: {study_id}")
             st.text_area("Report Text", report_text, height=220)
 
@@ -236,14 +243,14 @@ if page == "Annotate":
                     "q4_rationale": q4,
                     "q5_inconsistencies": q5,
                 }
-                append_to_gsheet("Annotations", result)
+                append_to_gsheet(result)
                 st.success("✅ Saved qualitative annotation.")
                 st.rerun()
 
 # === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
-    df = load_all_from_gsheet("Annotations")
+    df = load_all_from_gsheet()
     if df.empty:
         st.info("No annotations found yet.")
     else:
