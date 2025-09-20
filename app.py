@@ -56,10 +56,12 @@ def get_headers():
     return {"Authorization": f"token {st.secrets['github']['token']}"}
 
 def save_annotation_to_gist(phase, filename, data):
+    """Save JSON data into Gist. Use __ instead of / in filenames."""
     url = f"https://api.github.com/gists/{GIST_ID}"
+    safe_filename = f"{phase}__{filename}"  # flatten path
     payload = {
         "files": {
-            f"{phase}/{filename}": {"content": json.dumps(data, indent=2)}
+            safe_filename: {"content": json.dumps(data, indent=2)}
         }
     }
     resp = requests.patch(url, headers=get_headers(), json=payload)
@@ -71,7 +73,7 @@ def list_gist_files(phase, user):
     if resp.status_code != 200:
         return []
     files = resp.json()["files"]
-    return [f for f in files if f.startswith(f"{phase}/") and f.endswith(f"_{user}.json")]
+    return [f for f in files if f.startswith(f"{phase}__") and f.endswith(f"_{user}.json")]
 
 def load_annotation_from_gist(filename):
     url = f"https://api.github.com/gists/{GIST_ID}"
@@ -139,18 +141,17 @@ if "prepared" not in st.session_state:
     st.session_state.qual_df = qual_df.reset_index(drop=True)
     st.session_state.prepared = True
 
-# === Resume logic using Gist files (only set once) ===
+# === Resume logic using Gist files ===
 user = st.session_state.username
-if "current_index" not in st.session_state:
-    quant_done_files = list_gist_files("quant", user)
-    qual_done_files = list_gist_files("qual", user)
+quant_done_files = list_gist_files("quant", user)
+qual_done_files = list_gist_files("qual", user)
 
-    if len(quant_done_files) >= len(st.session_state.quant_df):
-        st.session_state.phase = "qual"
-        st.session_state.current_index = len(qual_done_files)
-    else:
-        st.session_state.phase = "quant"
-        st.session_state.current_index = len(quant_done_files)
+if len(quant_done_files) >= len(st.session_state.quant_df):
+    st.session_state.phase = "qual"
+    st.session_state.current_index = len(qual_done_files)
+else:
+    st.session_state.phase = "quant"
+    st.session_state.current_index = len(quant_done_files)
 
 quant_df = st.session_state.quant_df
 qual_df = st.session_state.qual_df
@@ -188,7 +189,6 @@ if page == "Annotate":
         st.text_area("Report Text", report_text, height=220)
 
         st.subheader("Symptom Evaluation")
-        st.text("For each symptom below, select 'Yes', 'No', or 'May be'. Leave blank if unsure.")
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(label=symptom, options=['', 'Yes', 'No', 'May be'],
@@ -203,11 +203,13 @@ if page == "Annotate":
                 "report_text": report_text,
                 "symptom_scores": scores,
                 "annotator": user,
+                "source_file": row["source_file"],
+                "source_label": row["source_label"]
             }
             filename = f"{row['uid']}_{user}.json"
             save_annotation_to_gist("quant", filename, result)
-            st.session_state.current_index += 1   # increment index here
             st.success("✅ Saved quantitative annotation.")
+            st.session_state.current_index += 1
             st.rerun()
 
     elif phase == "qual":
@@ -245,29 +247,51 @@ if page == "Annotate":
                     "report_text": report_text,
                     "qualitative_answers": qual_answers,
                     "annotator": user,
+                    "source_file": row["source_file"],
+                    "source_label": row["source_label"]
                 }
                 filename = f"{row['uid']}_{user}.json"
                 save_annotation_to_gist("qual", filename, result)
-                st.session_state.current_index += 1   # increment index here
                 st.success("✅ Saved qualitative annotation.")
+                st.session_state.current_index += 1
                 st.rerun()
 
 # === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
-
-    # admin should see ALL files, not just their own
+    # Admin should see ALL users' files
     url = f"https://api.github.com/gists/{GIST_ID}"
     resp = requests.get(url, headers=get_headers())
+    if resp.status_code != 200:
+        st.error("Failed to fetch gist files.")
+        st.stop()
+    files = resp.json()["files"]
+
     records = []
-    if resp.status_code == 200:
-        files = resp.json()["files"]
-        for fname, meta in files.items():
-            if fname.endswith(".json"):
-                records.append(json.loads(meta["content"]))
+    for fname, fmeta in files.items():
+        if fname.endswith(".json"):
+            try:
+                records.append(json.loads(fmeta["content"]))
+            except Exception:
+                continue
 
     if records:
         df = pd.json_normalize(records)
+
+        # Ensure all symptom columns exist
+        for sym in SYMPTOMS:
+            col = f"symptom_scores.{sym}"
+            if col not in df.columns:
+                df[col] = np.nan
+
+        # Reorder columns
+        base_cols = ["phase", "report_number_in_quant", "qual_case_number",
+                     "study_id", "report_text", "annotator",
+                     "source_file", "source_label"]
+        symptom_cols = [f"symptom_scores.{sym}" for sym in SYMPTOMS]
+        other_cols = [c for c in df.columns if c not in base_cols + symptom_cols]
+        df = df[base_cols + symptom_cols + other_cols]
+
         st.dataframe(df)
         st.download_button("⬇️ Download all annotations as CSV",
                            df.to_csv(index=False).encode("utf-8"),
