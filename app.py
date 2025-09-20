@@ -26,7 +26,10 @@ SHEET_URL = st.secrets["gsheet"]["url"]
 def connect_gsheet():
     creds = Credentials.from_service_account_info(
         st.secrets["gcp_service_account"],
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+]
     )
     client = gspread.authorize(creds)
     
