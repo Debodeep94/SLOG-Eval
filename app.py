@@ -65,16 +65,13 @@ def save_annotation_to_gist(phase, filename, data):
     resp = requests.patch(url, headers=get_headers(), json=payload)
     return resp.status_code == 200
 
-def list_gist_files(phase, user=None):
+def list_gist_files(phase, user):
     url = f"https://api.github.com/gists/{GIST_ID}"
     resp = requests.get(url, headers=get_headers())
     if resp.status_code != 200:
         return []
     files = resp.json()["files"]
-    if user:
-        return [f for f in files if f.startswith(f"{phase}/") and f.endswith(f"_{user}.json")]
-    else:
-        return [f for f in files if f.startswith(f"{phase}/")]
+    return [f for f in files if f.startswith(f"{phase}/") and f.endswith(f"_{user}.json")]
 
 def load_annotation_from_gist(filename):
     url = f"https://api.github.com/gists/{GIST_ID}"
@@ -142,17 +139,18 @@ if "prepared" not in st.session_state:
     st.session_state.qual_df = qual_df.reset_index(drop=True)
     st.session_state.prepared = True
 
-# === Resume logic using Gist files ===
+# === Resume logic using Gist files (only set once) ===
 user = st.session_state.username
-quant_done_files = list_gist_files("quant", user)
-qual_done_files = list_gist_files("qual", user)
+if "current_index" not in st.session_state:
+    quant_done_files = list_gist_files("quant", user)
+    qual_done_files = list_gist_files("qual", user)
 
-if len(quant_done_files) >= len(st.session_state.quant_df):
-    st.session_state.phase = "qual"
-    st.session_state.current_index = len(qual_done_files)
-else:
-    st.session_state.phase = "quant"
-    st.session_state.current_index = len(quant_done_files)
+    if len(quant_done_files) >= len(st.session_state.quant_df):
+        st.session_state.phase = "qual"
+        st.session_state.current_index = len(qual_done_files)
+    else:
+        st.session_state.phase = "quant"
+        st.session_state.current_index = len(quant_done_files)
 
 quant_df = st.session_state.quant_df
 qual_df = st.session_state.qual_df
@@ -191,8 +189,6 @@ if page == "Annotate":
 
         st.subheader("Symptom Evaluation")
         st.text("For each symptom below, select 'Yes', 'No', or 'May be'. Leave blank if unsure.")
-        st.text("Yes = definitely present, No = definitely absent, May be = possibly present")
-        st.text("Yes/No/May be options must be adapted from the radology report.")
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(label=symptom, options=['', 'Yes', 'No', 'May be'],
@@ -210,8 +206,8 @@ if page == "Annotate":
             }
             filename = f"{row['uid']}_{user}.json"
             save_annotation_to_gist("quant", filename, result)
+            st.session_state.current_index += 1   # increment index here
             st.success("✅ Saved quantitative annotation.")
-            st.session_state.current_index += 1   # ✅ increment index
             st.rerun()
 
     elif phase == "qual":
@@ -252,16 +248,24 @@ if page == "Annotate":
                 }
                 filename = f"{row['uid']}_{user}.json"
                 save_annotation_to_gist("qual", filename, result)
+                st.session_state.current_index += 1   # increment index here
                 st.success("✅ Saved qualitative annotation.")
-                st.session_state.current_index += 1   # ✅ increment index
                 st.rerun()
 
 # === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
-    quant_files = list_gist_files("quant")   # ✅ admin sees ALL users
-    qual_files = list_gist_files("qual")
-    records = [load_annotation_from_gist(f) for f in quant_files + qual_files if load_annotation_from_gist(f)]
+
+    # admin should see ALL files, not just their own
+    url = f"https://api.github.com/gists/{GIST_ID}"
+    resp = requests.get(url, headers=get_headers())
+    records = []
+    if resp.status_code == 200:
+        files = resp.json()["files"]
+        for fname, meta in files.items():
+            if fname.endswith(".json"):
+                records.append(json.loads(meta["content"]))
+
     if records:
         df = pd.json_normalize(records)
         st.dataframe(df)
