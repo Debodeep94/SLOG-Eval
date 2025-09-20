@@ -66,6 +66,7 @@ def save_annotation_to_gist(phase, filename, data):
     return resp.status_code == 200
 
 def list_gist_files(phase, user=None):
+    """Return all files for a phase. If user is provided, only return files for that user."""
     url = f"https://api.github.com/gists/{GIST_ID}"
     resp = requests.get(url, headers=get_headers())
     if resp.status_code != 200:
@@ -115,7 +116,6 @@ if not st.session_state.logged_in:
 
 # === Prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
-    # Find common study_ids
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
     if len(common_ids) == 0:
         st.error("No overlapping study_id values between the CSVs")
@@ -125,13 +125,11 @@ if "prepared" not in st.session_state:
     n_pick = min(NUM_QUAL_STUDY_IDS, len(common_ids))
     chosen_ids = pd.Series(common_ids).sample(n=n_pick, random_state=user_seed).tolist()
 
-    # Qualitative paired set
     df1_qual = df1[df1["study_id"].isin(chosen_ids)].copy()
     df2_qual = df2[df2["study_id"].isin(chosen_ids)].copy()
     qual_df = pd.concat([df1_qual, df2_qual], ignore_index=True)
     qual_df["uid"] = qual_df["study_id"].astype(str) + "__" + qual_df["source_label"]
 
-    # Quantitative pool
     df1_pool = df1[~df1["study_id"].isin(chosen_ids)].copy()
     df2_pool = df2[~df2["study_id"].isin(chosen_ids)].copy()
     pool_df = pd.concat([df1_pool, df2_pool], ignore_index=True)
@@ -162,9 +160,9 @@ phase = st.session_state.phase
 idx = st.session_state.current_index
 
 # === Sidebar & nav ===
-st.sidebar.success(f"Logged in as {st.session_state.username}")
+st.sidebar.success(f"Logged in as {user}")
 pages = ["Annotate"]
-if st.session_state.username == "admin":
+if user == "admin":
     st.sidebar.warning("⚠️ Admin mode: You can review all annotations.")
     pages.append("Review Results")
 page = st.sidebar.radio("📂 Navigation", pages)
@@ -192,9 +190,6 @@ if page == "Annotate":
         st.text_area("Report Text", report_text, height=220)
 
         st.subheader("Symptom Evaluation")
-        st.text("For each symptom below, select 'Yes', 'No', or 'May be'. Leave blank if unsure.")
-        st.text("Yes = definitely present, No = definitely absent, May be = possibly present")
-        st.text("Yes/No/May be options must be adapted from the radology report.")
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(label=symptom, options=['', 'Yes', 'No', 'May be'],
@@ -257,44 +252,24 @@ if page == "Annotate":
                 st.rerun()
 
 # === Review Results page ===
-# === Review Results page ===
 elif page == "Review Results":
     st.header("📊 Review & Download Survey Results")
-    
-    # Admin can see all users, others see only their own
-    if st.session_state.username == "admin":
-        quant_files = list_gist_files("quant", user=None)
-        qual_files = list_gist_files("qual", user=None)
-    else:
-        user = st.session_state.username
-        quant_files = list_gist_files("quant", user)
-        qual_files = list_gist_files("qual", user)
+    # Admin sees all files
+    quant_files = list_gist_files("quant", user=None)
+    qual_files = list_gist_files("qual", user=None)
 
     records = [load_annotation_from_gist(f) for f in quant_files + qual_files if load_annotation_from_gist(f)]
-
     if records:
-        # Flatten symptom_scores dict into separate columns
-        df = pd.json_normalize(records, sep='.')
-
-        # Optional: order columns for quantitative annotations
-        quant_cols = [
-            "report_number_in_quant", "study_id", "report_text", "annotator", 
-            "source_file", "source_label"
-        ] + [f"symptom_scores.{s}" for s in SYMPTOMS]
-
-        # Keep only columns that exist (some qual records won’t have symptom_scores)
-        quant_cols = [c for c in quant_cols if c in df.columns]
-
-        df = df[quant_cols + [c for c in df.columns if c not in quant_cols]]
-
+        df = pd.json_normalize(records, sep=".")
+        # Ensure all symptom columns exist
+        for symptom in SYMPTOMS:
+            col = f"symptom_scores.{symptom}"
+            if col not in df.columns:
+                df[col] = np.nan
         st.dataframe(df)
-
-        st.download_button(
-            "⬇️ Download all annotations as CSV",
-            df.to_csv(index=False).encode("utf-8"),
-            file_name="survey_results.csv",
-            mime="text/csv"
-        )
+        st.download_button("⬇️ Download all annotations as CSV",
+                           df.to_csv(index=False).encode("utf-8"),
+                           file_name="survey_results.csv",
+                           mime="text/csv")
     else:
         st.info("No annotations found yet.")
-
