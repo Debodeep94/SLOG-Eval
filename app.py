@@ -17,7 +17,7 @@ QUANT_TARGET_REPORTS = 60
 NUM_QUAL_STUDY_IDS = 5
 
 # === GitHub Gist setup ===
-GIST_ID = "YOUR_GIST_ID"  # create a gist and put its ID here
+GIST_ID = "208eeccefb34fdcbc877689c2b0c9d0b"  # create a gist and put its ID here
 
 def get_headers():
     return {"Authorization": f"token {st.secrets['github']['token']}"}
