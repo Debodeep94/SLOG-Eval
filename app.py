@@ -2,8 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import json
-from typing import List
+import os
 import requests
+from typing import List
 
 # === CONFIG ===
 SYMPTOMS: List[str] = [
@@ -16,8 +17,40 @@ symptom_list_str = ", ".join(SYMPTOMS)
 QUANT_TARGET_REPORTS = 60
 NUM_QUAL_STUDY_IDS = 5
 
-# === GitHub Gist setup ===
-GIST_ID = "208eeccefb34fdcbc877689c2b0c9d0b"  # create a gist and put its ID here
+# === GitHub secrets for private repo ===
+GITHUB_USERNAME = st.secrets["github"]["username"]
+GITHUB_TOKEN = st.secrets["github"]["token"]
+GITHUB_REPO = st.secrets["github"]["repo"]
+GITHUB_BRANCH = st.secrets["github"].get("branch", "main")
+
+# Local directory for cloning repo
+CLONE_DIR = "private_repo_data"
+
+# === Clone or pull the private repo ===
+if not os.path.exists(CLONE_DIR):
+    st.info("Cloning private repo...")
+    repo_url = f"https://{GITHUB_USERNAME}:{GITHUB_TOKEN}@github.com/{GITHUB_USERNAME}/{GITHUB_REPO}.git"
+    os.system(f"git clone --branch {GITHUB_BRANCH} {repo_url} {CLONE_DIR}")
+else:
+    st.info("Updating existing repo...")
+    os.system(f"cd {CLONE_DIR} && git pull")
+
+# === Load CSVs from private repo ===
+try:
+    df1 = pd.read_csv(os.path.join(CLONE_DIR, "selected_samples.csv"))
+    df2 = pd.read_csv(os.path.join(CLONE_DIR, "selected_samples00.csv"))
+except Exception as e:
+    st.error(f"Failed to load CSV files: {e}")
+    st.stop()
+
+# Add source info
+df1["source_file"] = "selected_samples.csv"
+df1["source_label"] = "df1"
+df2["source_file"] = "selected_samples00.csv"
+df2["source_label"] = "df2"
+
+# === GitHub Gist setup for annotation persistence ===
+GIST_ID = st.secrets["gist"]["id"]
 
 def get_headers():
     return {"Authorization": f"token {st.secrets['github']['token']}"}
@@ -75,35 +108,25 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# === Load data and prepare quant/qual splits once per session ===
+# === Prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
-    df1 = pd.read_csv("selected_samples.csv")
-    df1["source_file"] = "selected_samples.csv"
-    df1["source_label"] = "df1"
-
-    df2 = pd.read_csv("selected_samples00.csv")
-    df2["source_file"] = "selected_samples00.csv"
-    df2["source_label"] = "df2"
-
-    required_cols = {"study_id", "reports_preds"}
-    if not required_cols.issubset(df1.columns) or not required_cols.issubset(df2.columns):
-        st.error(f"Missing required columns in input files. Required: {required_cols}")
-        st.stop()
-
+    # Find common study_ids
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
     if len(common_ids) == 0:
-        st.error("No overlapping study_id values between selected_samples.csv and selected_samples00.csv")
+        st.error("No overlapping study_id values between the CSVs")
         st.stop()
 
     user_seed = abs(hash(st.session_state.username)) % (2**32)
     n_pick = min(NUM_QUAL_STUDY_IDS, len(common_ids))
     chosen_ids = pd.Series(common_ids).sample(n=n_pick, random_state=user_seed).tolist()
 
+    # Qualitative paired set
     df1_qual = df1[df1["study_id"].isin(chosen_ids)].copy()
     df2_qual = df2[df2["study_id"].isin(chosen_ids)].copy()
     qual_df = pd.concat([df1_qual, df2_qual], ignore_index=True)
     qual_df["uid"] = qual_df["study_id"].astype(str) + "__" + qual_df["source_label"]
 
+    # Quantitative pool
     df1_pool = df1[~df1["study_id"].isin(chosen_ids)].copy()
     df2_pool = df2[~df2["study_id"].isin(chosen_ids)].copy()
     pool_df = pd.concat([df1_pool, df2_pool], ignore_index=True)
@@ -116,7 +139,7 @@ if "prepared" not in st.session_state:
     st.session_state.qual_df = qual_df.reset_index(drop=True)
     st.session_state.prepared = True
 
-# === Resume logic using Gist ===
+# === Resume logic using Gist files ===
 user = st.session_state.username
 quant_done_files = list_gist_files("quant", user)
 qual_done_files = list_gist_files("qual", user)
@@ -146,79 +169,56 @@ def row_safe(df, i):
         return None
     return df.iloc[i]
 
-# === Annotate page ===
+# === Annotation page ===
 if page == "Annotate":
     if phase == "quant":
         total_quant = len(quant_df)
-        if total_quant == 0:
-            st.error("No reports available for quantitative phase.")
-        else:
-            display_idx = idx + 1
-            row = row_safe(quant_df, idx)
-            if row is None:
-                st.info("Quantitative phase complete. Moving to qualitative...")
-                st.session_state.phase = "qual"
-                st.session_state.current_index = len(list_gist_files("qual", user))
-                st.rerun()
+        row = row_safe(quant_df, idx)
+        if row is None:
+            st.info("Quantitative phase complete. Moving to qualitative...")
+            st.session_state.phase = "qual"
+            st.session_state.current_index = len(list_gist_files("qual", user))
+            st.rerun()
 
-            report_text = row["reports_preds"]
-            study_id = row["study_id"]
-            source_file = row.get("source_file", "")
-            source_label = row.get("source_label", "")
+        report_text = row["reports_preds"]
+        study_id = row["study_id"]
 
-            st.header(f"Patient Report {display_idx} of {total_quant} - ID: {study_id}")
-            st.text_area("Report Text (quantitative phase — no image shown)", report_text, height=220)
-            st.subheader("Symptom Evaluation")
-            st.write(
-                "Assign a score for each symptom. Leave blank if not mentioned.\n"
-                "Options: '', 'Yes', 'No', 'May be'"
-            )
+        st.header(f"Patient Report {idx+1} of {total_quant} - ID: {study_id}")
+        st.text_area("Report Text", report_text, height=220)
 
-            scores = {}
-            for symptom in SYMPTOMS:
-                selected = st.radio(
-                    label=symptom,
-                    options=['', 'Yes', 'No', 'May be'],
-                    horizontal=True,
-                    key=f"quant_{idx}_{symptom}"
-                )
-                scores[symptom] = np.nan if selected == '' else selected
+        st.subheader("Symptom Evaluation")
+        scores = {}
+        for symptom in SYMPTOMS:
+            selected = st.radio(label=symptom, options=['', 'Yes', 'No', 'May be'],
+                                horizontal=True, key=f"quant_{idx}_{symptom}")
+            scores[symptom] = np.nan if selected == '' else selected
 
-            if st.button("Save and Next (Quant)"):
-                result = {
-                    "phase": "quant",
-                    "report_number_in_quant": display_idx,
-                    "study_id": study_id,
-                    "report_text": report_text,
-                    "symptom_scores": scores,
-                    "annotator": user,
-                    "source_file": source_file,
-                    "source_label": source_label,
-                }
-                filename = f"{row['uid']}_{user}.json"
-                save_annotation_to_gist("quant", filename, result)
-                st.success("✅ Saved quantitative annotation.")
-                st.rerun()
+        if st.button("Save and Next (Quant)"):
+            result = {
+                "phase": "quant",
+                "report_number_in_quant": idx+1,
+                "study_id": study_id,
+                "report_text": report_text,
+                "symptom_scores": scores,
+                "annotator": user,
+            }
+            filename = f"{row['uid']}_{user}.json"
+            save_annotation_to_gist("quant", filename, result)
+            st.success("✅ Saved quantitative annotation.")
+            st.rerun()
 
     elif phase == "qual":
         total_qual = len(qual_df)
-        if total_qual == 0:
-            st.info("No qualitative paired cases reserved.")
-        elif idx >= total_qual:
+        if idx >= total_qual:
             st.header("Phase: Qualitative")
-            st.info("🎉 You have completed all qualitative items for this set.")
+            st.info("🎉 You have completed all qualitative items.")
         else:
             row = row_safe(qual_df, idx)
             study_id = row["study_id"]
             report_text = row["reports_preds"]
-            img_path = row.get("paths", None)
-            source_file = row.get("source_file", "")
-            source_label = row.get("source_label", "")
 
             st.header(f"Qualitative — Case {idx+1} of {total_qual}")
-            st.subheader(f"Patient ID: {study_id} • source: {source_label}")
-            if img_path:
-                st.image(img_path, caption=f"CXR — study {study_id}", use_container_width=True)
+            st.subheader(f"Patient ID: {study_id}")
             st.text_area("Report Text", report_text, height=220)
 
             q1 = st.text_input("Q1. Confidence (1-10)", key=f"q1_{idx}")
@@ -237,14 +237,11 @@ if page == "Annotate":
                 }
                 result = {
                     "phase": "qual",
-                    "qual_case_number": idx + 1,
+                    "qual_case_number": idx+1,
                     "study_id": study_id,
                     "report_text": report_text,
-                    "image_path": img_path,
                     "qualitative_answers": qual_answers,
                     "annotator": user,
-                    "source_file": source_file,
-                    "source_label": source_label,
                 }
                 filename = f"{row['uid']}_{user}.json"
                 save_annotation_to_gist("qual", filename, result)
@@ -260,11 +257,9 @@ elif page == "Review Results":
     if records:
         df = pd.json_normalize(records)
         st.dataframe(df)
-        st.download_button(
-            "⬇️ Download all annotations as CSV",
-            df.to_csv(index=False).encode("utf-8"),
-            file_name="survey_results.csv",
-            mime="text/csv"
-        )
+        st.download_button("⬇️ Download all annotations as CSV",
+                           df.to_csv(index=False).encode("utf-8"),
+                           file_name="survey_results.csv",
+                           mime="text/csv")
     else:
         st.info("No annotations found yet.")
