@@ -189,6 +189,12 @@ if page == "Annotate":
         st.text_area("Report Text", report_text, height=220)
 
         st.subheader("Symptom Evaluation")
+        st.text("For each symptom below, please indicate whether it is present in the report.")
+        st.text("Please select one option for each symptom:")
+        st.text(" - Yes: Symptom is clearly present")
+        st.text(" - No: Symptom is clearly absent")
+        st.text(" - May be: Symptom presence is uncertain") 
+        st.text(" - (Leave blank if you want to skip)")ß
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(
