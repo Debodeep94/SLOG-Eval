@@ -194,7 +194,7 @@ if page == "Annotate":
         st.text(" - Yes: Symptom is clearly present")
         st.text(" - No: Symptom is clearly absent")
         st.text(" - May be: Symptom presence is uncertain") 
-        st.text(" - (Leave blank if you want to skip)")ß
+        st.text(" - (Leave blank if you want to skip)")
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(
