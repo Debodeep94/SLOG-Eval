@@ -13,8 +13,7 @@ SYMPTOMS: List[str] = [
     'Pneumonia','Pneumothorax','Support Devices'
 ]
 symptom_list_str = ", ".join(SYMPTOMS)
-QUANT_TARGET_REPORTS = 60
-NUM_QUAL_STUDY_IDS = 5
+
 
 # === Google Sheets setup ===
 SHEET_URL = st.secrets["gsheet"]["url"]
@@ -103,6 +102,9 @@ df1["source_label"] = "df1"
 df2 = pd.read_csv("selected_samples00.csv")
 df2["source_file"] = "selected_samples00.csv"
 df2["source_label"] = "df2"
+
+NUM_QUAL_STUDY_IDS = 5
+QUANT_TARGET_REPORTS = df1.shape[0] + df2.shape[0] - NUM_QUAL_STUDY_IDS * 2
 
 # === Prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
