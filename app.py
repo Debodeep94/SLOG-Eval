@@ -20,7 +20,7 @@ NUM_QUAL_STUDY_IDS = 5
 SHEET_URL = st.secrets["gsheet"]["url"]
 
 @st.cache_resource
-@st.cache_data(ttl=60)  # cache for 1 minute
+
 def connect_gsheet():
     creds = Credentials.from_service_account_info(
         st.secrets["gcp_service_account"],
@@ -51,7 +51,7 @@ def append_to_gsheet(worksheet_name, row_dict):
     values = [clean_value(row_dict.get(h, "")) for h in headers]
     ws.append_row(values)
 
-
+@st.cache_data(ttl=60)  # refreshes at most once per 60s
 def load_all_from_gsheet(worksheet_name):
     sh = connect_gsheet()
     ws = sh.worksheet(worksheet_name)
