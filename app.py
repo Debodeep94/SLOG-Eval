@@ -144,6 +144,8 @@ quant_done, qual_done = get_progress_from_gsheet(user)
 st.write(f"Quant done: {len(quant_done)}, Qual done: {len(qual_done)}")
 
 # Filter out already annotated rows
+st.write("Before filtering:")
+st.write(f"Quant rows: {len(st.session_state.quant_df)}")
 st.session_state.quant_df = st.session_state.quant_df[
     ~st.session_state.quant_df["uid"].isin(quant_done)
 ].reset_index(drop=True)
