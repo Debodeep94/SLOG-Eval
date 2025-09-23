@@ -174,8 +174,10 @@ if st.session_state.username == "admin":
 
 # Sidebar progress tracker
 try:
-    total_quant = len(st.session_state.quant_df)
-    total_qual = len(st.session_state.qual_df)
+    # Fixed totals
+    total_quant = min(QUANT_TARGET_REPORTS, quant_done + len(st.session_state.quant_df))
+    total_qual = NUM_QUAL_STUDY_IDS * 2  # always df1 + df2 per study_id
+
     st.sidebar.markdown("### 📊 Progress")
     st.sidebar.write(f"**Quantitative:** {quant_done}/{total_quant}")
     st.sidebar.write(f"**Qualitative:** {qual_done}/{total_qual}")
@@ -188,6 +190,7 @@ except Exception as e:
     st.sidebar.error(f"Progress tracker failed: {e}")
 
 page = st.sidebar.radio("📂 Navigation", pages)
+
 
 def row_safe(df, i):
     if i < 0 or i >= len(df):
