@@ -165,7 +165,7 @@ qual_df = st.session_state.qual_df_filter
 # Decide phase
 st.session_state.phase = "quant" if not quant_df.empty else "qual"
 st.session_state.current_index = 0  # always start from first remaining
-
+st.write('debug ends here')
 phase = st.session_state.phase
 idx = st.session_state.current_index
 
