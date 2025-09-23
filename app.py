@@ -194,7 +194,7 @@ if page == "Annotate":
         report_text = row["reports_preds"]
         study_id = row["study_id"]
 
-        st.header(f"Patient Report {idx+1} of {total_quant} - ID: {row['uid']}")
+        st.header(f"Patient Report {len(quant_done)+1} of {total_quant} - ID: {study_id}")
         st.text_area("Report Text", report_text, height=220)
 
         st.subheader("Symptom Evaluation")
