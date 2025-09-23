@@ -109,7 +109,7 @@ QUANT_TARGET_REPORTS = df1.shape[0] + df2.shape[0] #- NUM_QUAL_STUDY_IDS * 2
 # === Prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
-    st.write("Common IDs:", len(common_ids))
+    # st.write("Common IDs:", len(common_ids))
     user_seed = abs(hash(st.session_state.username)) % (2**32)
     n_pick = min(NUM_QUAL_STUDY_IDS, len(common_ids))
     chosen_ids = pd.Series(common_ids).sample(n=n_pick, random_state=user_seed).tolist()
@@ -123,39 +123,39 @@ if "prepared" not in st.session_state:
     # df2_pool = df2[~df2["study_id"].isin(chosen_ids)].copy()
 
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
-    st.write("Common IDs:", len(common_ids))
+    # st.write("Common IDs:", len(common_ids))
 
     pool_df = pd.concat([df1, df2], ignore_index=True)
     pool_df["uid"] = pool_df["study_id"].astype(str) + "__" + pool_df["source_label"]
     pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
-    st.write("pool df", pool_df["study_id"].unique())
-    st.write('pool size: ', len(pool_df))
-    st.write((list(pool_df['uid'])))
+    # st.write("pool df", pool_df["study_id"].unique())
+    # st.write('pool size: ', len(pool_df))
+    # st.write((list(pool_df['uid'])))
     # quant_df = pool_df.iloc[:min(QUANT_TARGET_REPORTS, len(pool_df))].reset_index(drop=True)
-    st.write(f"Total quantitative reports: {pool_df.shape[0]}")
+    # st.write(f"Total quantitative reports: {pool_df.shape[0]}")
 
     st.session_state.quant_df = pool_df
     st.session_state.qual_df = qual_df.reset_index(drop=True)
     st.session_state.prepared = True
-    st.write("df1 rows:", len(df1))
-    st.write("df2 rows:", len(df2))
+    # st.write("df1 rows:", len(df1))
+    # st.write("df2 rows:", len(df2))
 
-    st.write("Qual rows:", len(qual_df))
-    st.write("Quant rows:", len(pool_df))
-    st.write("Total (qual + quant):", len(qual_df) + len(pool_df))
+    # st.write("Qual rows:", len(qual_df))
+    # st.write("Quant rows:", len(pool_df))
+    # st.write("Total (qual + quant):", len(qual_df) + len(pool_df))
 
 # === Resume progress ===
 user = st.session_state.username
 quant_done, qual_done = get_progress_from_gsheet(user)
-st.write(f"Quant done: {len(quant_done)}, Qual done: {len(qual_done)}")
-st.write(f"Quant done examples: {list(quant_done)}")
-st.write(f"Quant done examples: {list(set(quant_done))}")
+# st.write(f"Quant done: {len(quant_done)}, Qual done: {len(qual_done)}")
+# st.write(f"Quant done examples: {list(quant_done)}")
+# st.write(f"Quant done examples: {list(set(quant_done))}")
 
 
 # Filter out already annotated rows
-st.write("Before filtering:")
-st.write(f"Quant rows: {len(st.session_state.quant_df)}")
-st.write("uids ",list(st.session_state.quant_df["uid"]))
+# st.write("Before filtering:")
+# st.write(f"Quant rows: {len(st.session_state.quant_df)}")
+# st.write("uids ",list(st.session_state.quant_df["uid"]))
 st.session_state.quant_df_filter = st.session_state.quant_df[
     ~st.session_state.quant_df["uid"].isin(quant_done)
 ].reset_index(drop=True)
@@ -171,7 +171,7 @@ qual_df = st.session_state.qual_df_filter
 # Decide phase
 st.session_state.phase = "quant" if not quant_df.empty else "qual"
 st.session_state.current_index = 0  # always start from first remaining
-st.write('debug ends here')
+# st.write('debug ends here')
 phase = st.session_state.phase
 idx = st.session_state.current_index
 
