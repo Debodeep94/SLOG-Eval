@@ -141,6 +141,7 @@ if "prepared" not in st.session_state:
 # === Resume progress ===
 user = st.session_state.username
 quant_done, qual_done = get_progress_from_gsheet(user)
+st.write(f"Quant done: {len(quant_done)}, Qual done: {len(qual_done)}")
 
 # Filter out already annotated rows
 st.session_state.quant_df = st.session_state.quant_df[
