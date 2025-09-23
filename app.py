@@ -149,7 +149,7 @@ st.write(f"Quant done examples: {list(set(quant_done))}")
 # Filter out already annotated rows
 st.write("Before filtering:")
 st.write(f"Quant rows: {len(st.session_state.quant_df)}")
-st.write("uids ",st.session_state.quant_df["uid"])
+st.write("uids ",list(st.session_state.quant_df["uid"]))
 st.session_state.quant_df = st.session_state.quant_df[
     ~st.session_state.quant_df["uid"].isin(quant_done)
 ].reset_index(drop=True)
