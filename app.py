@@ -109,7 +109,7 @@ QUANT_TARGET_REPORTS = df1.shape[0] + df2.shape[0] - NUM_QUAL_STUDY_IDS * 2
 # === Prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
-    print('common ids: ', len(common_ids))
+    st.write("Common IDs:", len(common_ids))
     user_seed = abs(hash(st.session_state.username)) % (2**32)
     n_pick = min(NUM_QUAL_STUDY_IDS, len(common_ids))
     chosen_ids = pd.Series(common_ids).sample(n=n_pick, random_state=user_seed).tolist()
@@ -132,7 +132,7 @@ if "prepared" not in st.session_state:
     st.session_state.prepared = True
 st.write("df1 rows:", len(df1))
 st.write("df2 rows:", len(df2))
-st.write("Common IDs:", len(common_ids))
+
 st.write("Qual rows:", len(qual_df))
 st.write("Quant rows:", len(quant_df))
 st.write("Total (qual + quant):", len(qual_df) + len(quant_df))
