@@ -152,6 +152,7 @@ st.session_state.qual_df = st.session_state.qual_df[
 ].reset_index(drop=True)
 
 quant_df = st.session_state.quant_df
+st.write(f"Total quantitative reports: {quant_df.shape[0]}")
 qual_df = st.session_state.qual_df
 
 # Decide phase
