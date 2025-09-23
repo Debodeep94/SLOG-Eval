@@ -119,13 +119,13 @@ if "prepared" not in st.session_state:
     qual_df = pd.concat([df1_qual, df2_qual], ignore_index=True)
     qual_df["uid"] = qual_df["study_id"].astype(str) + "__" + qual_df["source_label"]
 
-    df1_pool = df1[~df1["study_id"].isin(chosen_ids)].copy()
-    df2_pool = df2[~df2["study_id"].isin(chosen_ids)].copy()
+    # df1_pool = df1[~df1["study_id"].isin(chosen_ids)].copy()
+    # df2_pool = df2[~df2["study_id"].isin(chosen_ids)].copy()
 
-    common_ids = pd.Index(df1_pool["study_id"]).intersection(pd.Index(df2_pool["study_id"]))
+    common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
     st.write("Common IDs:", len(common_ids))
 
-    pool_df = pd.concat([df1_pool, df2_pool], ignore_index=True)
+    pool_df = pd.concat([df1, df2], ignore_index=True)
     pool_df["uid"] = pool_df["study_id"].astype(str) + "__" + pool_df["source_label"]
     pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
     st.write("pool df", pool_df["study_id"].unique())
