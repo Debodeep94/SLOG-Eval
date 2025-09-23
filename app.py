@@ -124,7 +124,7 @@ if "prepared" not in st.session_state:
     pool_df = pd.concat([df1_pool, df2_pool], ignore_index=True)
     pool_df["uid"] = pool_df["study_id"].astype(str) + "__" + pool_df["source_label"]
     pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
-    print('pool size: ', len(pool_df))
+    st.write('pool size: ', len(pool_df))
     quant_df = pool_df.iloc[:min(QUANT_TARGET_REPORTS, len(pool_df))].reset_index(drop=True)
     st.write(f"Total quantitative reports: {quant_df.shape[0]}")
 
