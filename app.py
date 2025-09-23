@@ -13,8 +13,8 @@ SYMPTOMS: List[str] = [
     'Pneumonia','Pneumothorax','Support Devices'
 ]
 symptom_list_str = ", ".join(SYMPTOMS)
-QUANT_TARGET_REPORTS = 50   # 25 from df1 + 25 from df2 after sampling
-NUM_QUAL_STUDY_IDS = 5      # 5 study IDs, but duplicated (df1 + df2 = 10)
+QUANT_TARGET_REPORTS = 60
+NUM_QUAL_STUDY_IDS = 5
 
 # === Google Sheets setup ===
 SHEET_URL = st.secrets["gsheet"]["url"]
@@ -41,6 +41,7 @@ def append_to_gsheet(worksheet_name, row_dict):
         headers = list(row_dict.keys())
         ws.append_row(headers)
 
+    # Sanitize values: replace NaN/None with ""
     def clean_value(v):
         if pd.isna(v):
             return ""
@@ -49,7 +50,7 @@ def append_to_gsheet(worksheet_name, row_dict):
     values = [clean_value(row_dict.get(h, "")) for h in headers]
     ws.append_row(values)
 
-@st.cache_data(ttl=5)  # cache for 5s to reduce quota usage
+@st.cache_data(ttl=10)  # cache reads to reduce API quota
 def load_all_from_gsheet(worksheet_name):
     sh = connect_gsheet()
     ws = sh.worksheet(worksheet_name)
@@ -62,21 +63,11 @@ def get_progress_from_gsheet(user):
     df = load_all_from_gsheet("Annotations")
     if df.empty:
         return set(), set()
-
     user_df = df[df["annotator"] == user]
-
-    quant_done = set(
-        user_df[user_df["phase"] == "quant"]["study_id"].astype(str)
-        + "__"
-        + user_df[user_df["phase"] == "quant"]["source_label"]
-    )
-
-    qual_done = set(
-        user_df[user_df["phase"] == "qual"]["study_id"].astype(str)
-        + "__"
-        + user_df[user_df["phase"] == "qual"]["source_label"]
-    )
-
+    quant_done = set(user_df[user_df["phase"] == "quant"]["study_id"].astype(str) 
+                     + "__" + user_df[user_df["phase"] == "quant"]["source_label"])
+    qual_done = set(user_df[user_df["phase"] == "qual"]["study_id"].astype(str) 
+                    + "__" + user_df[user_df["phase"] == "qual"]["source_label"])
     return quant_done, qual_done
 
 # === Credentials from secrets.toml ===
@@ -113,12 +104,10 @@ df2 = pd.read_csv("selected_samples00.csv")
 df2["source_file"] = "selected_samples00.csv"
 df2["source_label"] = "df2"
 
-# === Prepare quant/qual splits ===
+# === Prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
     user_seed = abs(hash(st.session_state.username)) % (2**32)
-
-    # Qualitative = 5 study IDs × 2 sources
     n_pick = min(NUM_QUAL_STUDY_IDS, len(common_ids))
     chosen_ids = pd.Series(common_ids).sample(n=n_pick, random_state=user_seed).tolist()
 
@@ -127,14 +116,13 @@ if "prepared" not in st.session_state:
     qual_df = pd.concat([df1_qual, df2_qual], ignore_index=True)
     qual_df["uid"] = qual_df["study_id"].astype(str) + "__" + qual_df["source_label"]
 
-    # Quantitative = remaining pool (shuffled)
     df1_pool = df1[~df1["study_id"].isin(chosen_ids)].copy()
     df2_pool = df2[~df2["study_id"].isin(chosen_ids)].copy()
     pool_df = pd.concat([df1_pool, df2_pool], ignore_index=True)
     pool_df["uid"] = pool_df["study_id"].astype(str) + "__" + pool_df["source_label"]
     pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
 
-    quant_df = pool_df.iloc[:QUANT_TARGET_REPORTS].reset_index(drop=True)
+    quant_df = pool_df.iloc[:min(QUANT_TARGET_REPORTS, len(pool_df))].reset_index(drop=True)
 
     st.session_state.quant_df = quant_df
     st.session_state.qual_df = qual_df.reset_index(drop=True)
@@ -153,12 +141,37 @@ st.session_state.qual_df = st.session_state.qual_df[
     ~st.session_state.qual_df["uid"].isin(qual_done)
 ].reset_index(drop=True)
 
-# Update totals AFTER filtering
 quant_df = st.session_state.quant_df
 qual_df = st.session_state.qual_df
 
+# Decide phase
 st.session_state.phase = "quant" if not quant_df.empty else "qual"
-st.session_state.current_index = 0  # always restart from first remaining
+st.session_state.current_index = 0  # always start from first remaining
+
+phase = st.session_state.phase
+idx = st.session_state.current_index
+
+# === Sidebar & nav ===
+st.sidebar.success(f"Logged in as {st.session_state.username}")
+pages = ["Annotate"]
+if st.session_state.username == "admin":
+    st.sidebar.warning("⚠️ Admin mode: You can review all annotations.")
+    pages.append("Review Results")
+
+# Sidebar progress tracker
+try:
+    st.sidebar.markdown("### 📊 Progress")
+    st.sidebar.write(f"**Quantitative:** {len(quant_done)}/{QUANT_TARGET_REPORTS}")
+    st.sidebar.write(f"**Qualitative:** {len(qual_done)}/{NUM_QUAL_STUDY_IDS*2}")
+
+    if st.session_state.username == "admin":
+        df_all = load_all_from_gsheet("Annotations")
+        st.sidebar.write("---")
+        st.sidebar.write(f"**Total annotations (all users):** {df_all.shape[0]}")
+except Exception as e:
+    st.sidebar.error(f"Progress tracker failed: {e}")
+
+page = st.sidebar.radio("📂 Navigation", pages)
 
 def row_safe(df, i):
     if i < 0 or i >= len(df):
@@ -173,23 +186,23 @@ if page == "Annotate":
         if row is None:
             st.info("Quantitative phase complete. Moving to qualitative...")
             st.session_state.phase = "qual"
-            st.session_state.current_index = len(qual_done)
+            st.session_state.current_index = 0
             st.rerun()
 
         report_text = row["reports_preds"]
         study_id = row["study_id"]
-        uid = row["uid"]
 
-        st.header(f"Patient Report {idx+1} of {total_quant} - ID: {uid}")
+        st.header(f"Patient Report {idx+1} of {total_quant} - ID: {row['uid']}")
         st.text_area("Report Text", report_text, height=220)
 
+        st.subheader("Symptom Evaluation")
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(
                 label=symptom,
                 options=['Yes', 'No', 'May be'],
                 horizontal=True,
-                key=f"quant_{uid}_{symptom}"
+                key=f"quant_{idx}_{symptom}"
             )
             scores[symptom] = np.nan if selected == '' else selected
 
@@ -206,28 +219,29 @@ if page == "Annotate":
             }
             append_to_gsheet("Annotations", result)
             st.success("✅ Saved quantitative annotation.")
+
             st.session_state.current_index += 1
             st.rerun()
 
     elif phase == "qual":
         total_qual = len(qual_df)
-        if idx >= total_qual:
+        row = row_safe(qual_df, idx)
+        if row is None:
             st.header("Phase: Qualitative")
             st.info("🎉 You have completed all qualitative items.")
         else:
-            row = row_safe(qual_df, idx)
             study_id = row["study_id"]
-            uid = row["uid"]
             report_text = row["reports_preds"]
 
-            st.header(f"Qualitative — Case {idx+1} of {total_qual} — ID: {uid}")
+            st.header(f"Qualitative — Case {idx+1} of {total_qual}")
+            st.subheader(f"Patient ID: {row['uid']}")
             st.text_area("Report Text", report_text, height=220)
 
-            q1 = st.text_input("Q1. Confidence (1-10)", key=f"q1_{uid}")
-            q2 = st.text_area(f"Q2. Difficult symptoms? Options: {symptom_list_str}", key=f"q2_{uid}")
-            q3 = st.text_area("Q3. Additional info needed? (Yes/No)", key=f"q3_{uid}")
-            q4 = st.text_area("Q4. Rationale for key decisions", key=f"q4_{uid}")
-            q5 = st.text_area("Q5. Inconsistencies between image and text?", key=f"q5_{uid}")
+            q1 = st.text_input("Q1. Confidence (1-10)", key=f"q1_{idx}")
+            q2 = st.text_area(f"Q2. Difficult symptoms? Options: {symptom_list_str}", key=f"q2_{idx}")
+            q3 = st.text_area("Q3. Additional info needed? (Yes/No)", key=f"q3_{idx}")
+            q4 = st.text_area("Q4. Rationale for key decisions", key=f"q4_{idx}")
+            q5 = st.text_area("Q5. Inconsistencies between image and text?", key=f"q5_{idx}")
 
             if st.button("Save and Next (Qual)"):
                 result = {
@@ -235,6 +249,7 @@ if page == "Annotate":
                     "qual_case_number": idx+1,
                     "study_id": study_id,
                     "report_text": report_text,
+                    "source_file": row["source_file"],
                     "source_label": row["source_label"],
                     "annotator": user,
                     "q1_confidence_1_10": q1,
@@ -245,6 +260,7 @@ if page == "Annotate":
                 }
                 append_to_gsheet("Annotations", result)
                 st.success("✅ Saved qualitative annotation.")
+
                 st.session_state.current_index += 1
                 st.rerun()
 
