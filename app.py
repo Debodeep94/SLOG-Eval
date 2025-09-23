@@ -133,19 +133,37 @@ if "prepared" not in st.session_state:
 
 # === Resume progress ===
 user = st.session_state.username
-quant_done, qual_done = get_progress_from_gsheet(user)
+df_progress = load_all_from_gsheet("Annotations")
 
-if quant_done >= len(st.session_state.quant_df):
+# Build set of already-annotated UIDs for this user
+done_uids = set()
+if not df_progress.empty:
+    df_progress["uid"] = df_progress["study_id"].astype(str) + "__" + df_progress["source_label"].astype(str)
+    done_uids = set(df_progress[df_progress["annotator"] == user]["uid"])
+
+# Filter quant/qual so user never sees duplicates
+quant_df = st.session_state.quant_df[~st.session_state.quant_df["uid"].isin(done_uids)].reset_index(drop=True)
+qual_df = st.session_state.qual_df[~st.session_state.qual_df["uid"].isin(done_uids)].reset_index(drop=True)
+
+# Update in session so it persists
+st.session_state.quant_df = quant_df
+st.session_state.qual_df = qual_df
+
+# Progress counts
+quant_done = df_progress[(df_progress["annotator"] == user) & (df_progress["phase"] == "quant")].shape[0]
+qual_done = df_progress[(df_progress["annotator"] == user) & (df_progress["phase"] == "qual")].shape[0]
+
+# Decide which phase we’re in
+if len(quant_df) == 0:
     st.session_state.phase = "qual"
-    st.session_state.current_index = qual_done
+    st.session_state.current_index = 0
 else:
     st.session_state.phase = "quant"
-    st.session_state.current_index = quant_done
+    st.session_state.current_index = 0
 
-quant_df = st.session_state.quant_df
-qual_df = st.session_state.qual_df
 phase = st.session_state.phase
 idx = st.session_state.current_index
+
 
 # === Sidebar & nav ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
