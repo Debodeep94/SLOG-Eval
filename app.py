@@ -191,6 +191,7 @@ def row_safe(df, i):
 if page == "Annotate":
     if phase == "quant":
         total_quant = len(quant_df)
+        st.write(f"Total quantitative reports remaining: {total_quant}")
         row = row_safe(quant_df, idx)
         if row is None:
             st.info("Quantitative phase complete. Moving to qualitative...")
