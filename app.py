@@ -103,6 +103,19 @@ df2 = pd.read_csv("selected_samples00.csv")
 df2["source_file"] = "selected_samples00.csv"
 df2["source_label"] = "df2"
 
+
+# === Filter out already annotated study_ids for THIS user ===
+df_existing = load_all_from_gsheet("Annotations")
+if not df_existing.empty:
+    annotated_ids = set(
+        df_existing.loc[df_existing["annotator"] == st.session_state.username, "study_id"].astype(str).unique()
+    )
+else:
+    annotated_ids = set()
+
+df1 = df1[~df1["study_id"].astype(str).isin(annotated_ids)]
+df2 = df2[~df2["study_id"].astype(str).isin(annotated_ids)]
+
 # === Prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
