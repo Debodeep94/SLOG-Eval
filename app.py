@@ -150,17 +150,17 @@ st.write(f"Quant done examples: {list(set(quant_done))}")
 st.write("Before filtering:")
 st.write(f"Quant rows: {len(st.session_state.quant_df)}")
 st.write("uids ",list(st.session_state.quant_df["uid"]))
-st.session_state.quant_df = st.session_state.quant_df[
+st.session_state.quant_df_filter = st.session_state.quant_df[
     ~st.session_state.quant_df["uid"].isin(quant_done)
 ].reset_index(drop=True)
 
-st.session_state.qual_df = st.session_state.qual_df[
+st.session_state.qual_df_filter = st.session_state.qual_df[
     ~st.session_state.qual_df["uid"].isin(qual_done)
 ].reset_index(drop=True)
 
-quant_df = st.session_state.quant_df
+quant_df = st.session_state.quant_df_filter
 st.write(f"Total quantitative reports: {quant_df.shape[0]}")
-qual_df = st.session_state.qual_df
+qual_df = st.session_state.qual_df_filter
 
 # Decide phase
 st.session_state.phase = "quant" if not quant_df.empty else "qual"
