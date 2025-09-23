@@ -130,6 +130,7 @@ if "prepared" not in st.session_state:
     pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
     st.write("pool df", pool_df["study_id"].unique())
     st.write('pool size: ', len(pool_df))
+    st.wwrite((pool_df['uid']))
     # quant_df = pool_df.iloc[:min(QUANT_TARGET_REPORTS, len(pool_df))].reset_index(drop=True)
     st.write(f"Total quantitative reports: {pool_df.shape[0]}")
 
