@@ -20,7 +20,6 @@ NUM_QUAL_STUDY_IDS = 5
 SHEET_URL = st.secrets["gsheet"]["url"]
 
 @st.cache_resource
-
 def connect_gsheet():
     creds = Credentials.from_service_account_info(
         st.secrets["gcp_service_account"],
@@ -51,7 +50,7 @@ def append_to_gsheet(worksheet_name, row_dict):
     values = [clean_value(row_dict.get(h, "")) for h in headers]
     ws.append_row(values)
 
-@st.cache_data(ttl=2)  # refreshes at most once per 60s
+@st.cache_data(ttl=30)  # cache reads for 30s
 def load_all_from_gsheet(worksheet_name):
     sh = connect_gsheet()
     ws = sh.worksheet(worksheet_name)
@@ -103,38 +102,30 @@ df2 = pd.read_csv("selected_samples00.csv")
 df2["source_file"] = "selected_samples00.csv"
 df2["source_label"] = "df2"
 
-
-# === Filter out already annotated study_ids for THIS user ===
-df_existing = load_all_from_gsheet("Annotations")
-if not df_existing.empty:
-    annotated_ids = set(
-        df_existing.loc[df_existing["annotator"] == st.session_state.username, "study_id"].astype(str).unique()
-    )
-else:
-    annotated_ids = set()
-
-df1 = df1[~df1["study_id"].astype(str).isin(annotated_ids)]
-df2 = df2[~df2["study_id"].astype(str).isin(annotated_ids)]
-
 # === Prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
     user_seed = abs(hash(st.session_state.username)) % (2**32)
+
+    # Pick qual cases
     n_pick = min(NUM_QUAL_STUDY_IDS, len(common_ids))
     chosen_ids = pd.Series(common_ids).sample(n=n_pick, random_state=user_seed).tolist()
 
+    # Qualitative paired set
     df1_qual = df1[df1["study_id"].isin(chosen_ids)].copy()
     df2_qual = df2[df2["study_id"].isin(chosen_ids)].copy()
     qual_df = pd.concat([df1_qual, df2_qual], ignore_index=True)
     qual_df["uid"] = qual_df["study_id"].astype(str) + "__" + qual_df["source_label"]
 
+    # Quant pool = everything else
     df1_pool = df1[~df1["study_id"].isin(chosen_ids)].copy()
     df2_pool = df2[~df2["study_id"].isin(chosen_ids)].copy()
     pool_df = pd.concat([df1_pool, df2_pool], ignore_index=True)
     pool_df["uid"] = pool_df["study_id"].astype(str) + "__" + pool_df["source_label"]
-    pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
 
-    quant_df = pool_df.iloc[:min(QUANT_TARGET_REPORTS, len(pool_df))].reset_index(drop=True)
+    # Shuffle + slice to QUANT_TARGET_REPORTS
+    pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
+    quant_df = pool_df.head(QUANT_TARGET_REPORTS).reset_index(drop=True)
 
     st.session_state.quant_df = quant_df
     st.session_state.qual_df = qual_df.reset_index(drop=True)
@@ -142,43 +133,14 @@ if "prepared" not in st.session_state:
 
 # === Resume progress ===
 user = st.session_state.username
+quant_done, qual_done = get_progress_from_gsheet(user)
 
-# Load annotations for this user
-df_existing = load_all_from_gsheet("Annotations")
-done_ids = set()
-if not df_existing.empty:
-    done_ids = set(
-        df_existing.loc[df_existing["annotator"] == user, "study_id"].astype(str).unique()
-    )
-
-def get_next_unseen_index(df, done_ids):
-    """Return the index of the first study_id not yet annotated by the user."""
-    for i, sid in enumerate(df["study_id"].astype(str)):
-        if sid not in done_ids:
-            return i
-    return len(df)  # all done
-
-# Count completed annotations (only those in this session's pool)
-def get_progress(user, quant_df, qual_df):
-    df = load_all_from_gsheet("Annotations")
-    if df.empty:
-        return 0, 0
-    user_df = df[df["annotator"] == user]
-    quant_done = user_df[(user_df["phase"] == "quant") &
-                         (user_df["study_id"].astype(str).isin(quant_df["study_id"].astype(str)))].shape[0]
-    qual_done = user_df[(user_df["phase"] == "qual") &
-                        (user_df["study_id"].astype(str).isin(qual_df["study_id"].astype(str)))].shape[0]
-    return quant_done, qual_done
-
-quant_done, qual_done = get_progress(user, st.session_state.quant_df, st.session_state.qual_df)
-
-# Decide which phase to start/resume
 if quant_done >= len(st.session_state.quant_df):
     st.session_state.phase = "qual"
-    st.session_state.current_index = get_next_unseen_index(st.session_state.qual_df, done_ids)
+    st.session_state.current_index = qual_done
 else:
     st.session_state.phase = "quant"
-    st.session_state.current_index = get_next_unseen_index(st.session_state.quant_df, done_ids)
+    st.session_state.current_index = quant_done
 
 quant_df = st.session_state.quant_df
 qual_df = st.session_state.qual_df
@@ -207,7 +169,6 @@ try:
 except Exception as e:
     st.sidebar.error(f"Progress tracker failed: {e}")
 
-
 page = st.sidebar.radio("📂 Navigation", pages)
 
 def row_safe(df, i):
@@ -234,10 +195,6 @@ if page == "Annotate":
 
         st.subheader("Symptom Evaluation")
         st.text("For each symptom below, please indicate whether it is present in the report.")
-        st.text("Please select one option for each symptom:")
-        st.text(" - Yes: Symptom is clearly present")
-        st.text(" - No: Symptom is clearly absent")
-        st.text(" - May be: Symptom presence is uncertain") 
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(
@@ -311,10 +268,7 @@ elif page == "Review Results":
     if df.empty:
         st.info("No annotations found yet.")
     else:
-        # Expand JSON-like keys automatically
-        df = pd.json_normalize(df.to_dict(orient="records"))
         st.dataframe(df)
-
         st.download_button(
             "⬇️ Download all annotations as CSV",
             df.to_csv(index=False).encode("utf-8"),
