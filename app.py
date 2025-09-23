@@ -144,34 +144,21 @@ if "prepared" not in st.session_state:
 user = st.session_state.username
 quant_done, qual_done = get_progress_from_gsheet(user)
 
-st.session_state.phase = "quant" if len(quant_done) < len(st.session_state.quant_df) else "qual"
-st.session_state.current_index = len(quant_done) if st.session_state.phase == "quant" else len(qual_done)
+# Filter out already annotated rows
+st.session_state.quant_df = st.session_state.quant_df[
+    ~st.session_state.quant_df["uid"].isin(quant_done)
+].reset_index(drop=True)
 
+st.session_state.qual_df = st.session_state.qual_df[
+    ~st.session_state.qual_df["uid"].isin(qual_done)
+].reset_index(drop=True)
+
+# Update totals AFTER filtering
 quant_df = st.session_state.quant_df
 qual_df = st.session_state.qual_df
-phase = st.session_state.phase
-idx = st.session_state.current_index
 
-# === Sidebar & nav ===
-st.sidebar.success(f"Logged in as {st.session_state.username}")
-pages = ["Annotate"]
-if st.session_state.username == "admin":
-    st.sidebar.warning("⚠️ Admin mode: You can review all annotations.")
-    pages.append("Review Results")
-
-# Sidebar progress tracker
-total_quant = len(st.session_state.quant_df)
-total_qual = len(st.session_state.qual_df)
-st.sidebar.markdown("### 📊 Progress")
-st.sidebar.write(f"**Quantitative:** {len(quant_done)}/{total_quant}")
-st.sidebar.write(f"**Qualitative:** {len(qual_done)}/{total_qual}")
-
-if st.session_state.username == "admin":
-    df_all = load_all_from_gsheet("Annotations")
-    st.sidebar.write("---")
-    st.sidebar.write(f"**Total annotations (all users):** {df_all.shape[0]}")
-
-page = st.sidebar.radio("📂 Navigation", pages)
+st.session_state.phase = "quant" if not quant_df.empty else "qual"
+st.session_state.current_index = 0  # always restart from first remaining
 
 def row_safe(df, i):
     if i < 0 or i >= len(df):
