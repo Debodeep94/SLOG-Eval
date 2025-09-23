@@ -49,7 +49,7 @@ def append_to_gsheet(worksheet_name, row_dict):
     values = [clean_value(row_dict.get(h, "")) for h in headers]
     ws.append_row(values)
 
-@st.cache_data(ttl=2)  # cache reads to reduce API quota
+@st.cache_data(ttl=1)  # cache reads to reduce API quota
 def load_all_from_gsheet(worksheet_name):
     sh = connect_gsheet()
     ws = sh.worksheet(worksheet_name)
@@ -109,6 +109,7 @@ QUANT_TARGET_REPORTS = df1.shape[0] + df2.shape[0] - NUM_QUAL_STUDY_IDS * 2
 # === Prepare quant/qual splits once per session ===
 if "prepared" not in st.session_state:
     common_ids = pd.Index(df1["study_id"]).intersection(pd.Index(df2["study_id"]))
+    print('common ids: ', len(common_ids))
     user_seed = abs(hash(st.session_state.username)) % (2**32)
     n_pick = min(NUM_QUAL_STUDY_IDS, len(common_ids))
     chosen_ids = pd.Series(common_ids).sample(n=n_pick, random_state=user_seed).tolist()
@@ -123,7 +124,7 @@ if "prepared" not in st.session_state:
     pool_df = pd.concat([df1_pool, df2_pool], ignore_index=True)
     pool_df["uid"] = pool_df["study_id"].astype(str) + "__" + pool_df["source_label"]
     pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
-
+    print('pool size: ', len(pool_df))
     quant_df = pool_df.iloc[:min(QUANT_TARGET_REPORTS, len(pool_df))].reset_index(drop=True)
 
     st.session_state.quant_df = quant_df
