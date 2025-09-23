@@ -194,12 +194,11 @@ if page == "Annotate":
         st.text(" - Yes: Symptom is clearly present")
         st.text(" - No: Symptom is clearly absent")
         st.text(" - May be: Symptom presence is uncertain") 
-        st.text(" - (Leave blank if you want to skip)")
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(
                 label=symptom,
-                options=['', 'Yes', 'No', 'May be'],
+                options=['Yes', 'No', 'May be'],
                 horizontal=True,
                 key=f"quant_{idx}_{symptom}"
             )
