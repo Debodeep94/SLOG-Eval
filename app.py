@@ -125,18 +125,18 @@ if "prepared" not in st.session_state:
     pool_df["uid"] = pool_df["study_id"].astype(str) + "__" + pool_df["source_label"]
     pool_df = pool_df.sample(frac=1, random_state=user_seed).reset_index(drop=True)
     st.write('pool size: ', len(pool_df))
-    quant_df = pool_df.iloc[:min(QUANT_TARGET_REPORTS, len(pool_df))].reset_index(drop=True)
-    st.write(f"Total quantitative reports: {quant_df.shape[0]}")
+    # quant_df = pool_df.iloc[:min(QUANT_TARGET_REPORTS, len(pool_df))].reset_index(drop=True)
+    st.write(f"Total quantitative reports: {pool_df.shape[0]}")
 
-    st.session_state.quant_df = quant_df
+    st.session_state.quant_df = pool_df
     st.session_state.qual_df = qual_df.reset_index(drop=True)
     st.session_state.prepared = True
     st.write("df1 rows:", len(df1))
     st.write("df2 rows:", len(df2))
 
     st.write("Qual rows:", len(qual_df))
-    st.write("Quant rows:", len(quant_df))
-    st.write("Total (qual + quant):", len(qual_df) + len(quant_df))
+    st.write("Quant rows:", len(pool_df))
+    st.write("Total (qual + quant):", len(qual_df) + len(pool_df))
 
 # === Resume progress ===
 user = st.session_state.username
@@ -148,10 +148,10 @@ st.write(f"Quant done examples: {list(set(quant_done))}")
 
 # Filter out already annotated rows
 st.write("Before filtering:")
-st.write(f"Quant rows: {len(st.session_state.quant_df)}")
-st.write("uids ",list(st.session_state.quant_df["uid"]))
+st.write(f"Quant rows: {len(st.session_state.pool_df)}")
+st.write("uids ",list(st.session_state.pool_df["uid"]))
 st.session_state.quant_df_filter = st.session_state.quant_df[
-    ~st.session_state.quant_df["uid"].isin(quant_done)
+    ~st.session_state.pool_df["uid"].isin(quant_done)
 ].reset_index(drop=True)
 
 st.session_state.qual_df_filter = st.session_state.qual_df[
