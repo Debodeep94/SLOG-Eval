@@ -142,14 +142,43 @@ if "prepared" not in st.session_state:
 
 # === Resume progress ===
 user = st.session_state.username
-quant_done, qual_done = get_progress_from_gsheet(user)
 
+# Load annotations for this user
+df_existing = load_all_from_gsheet("Annotations")
+done_ids = set()
+if not df_existing.empty:
+    done_ids = set(
+        df_existing.loc[df_existing["annotator"] == user, "study_id"].astype(str).unique()
+    )
+
+def get_next_unseen_index(df, done_ids):
+    """Return the index of the first study_id not yet annotated by the user."""
+    for i, sid in enumerate(df["study_id"].astype(str)):
+        if sid not in done_ids:
+            return i
+    return len(df)  # all done
+
+# Count completed annotations (only those in this session's pool)
+def get_progress(user, quant_df, qual_df):
+    df = load_all_from_gsheet("Annotations")
+    if df.empty:
+        return 0, 0
+    user_df = df[df["annotator"] == user]
+    quant_done = user_df[(user_df["phase"] == "quant") &
+                         (user_df["study_id"].astype(str).isin(quant_df["study_id"].astype(str)))].shape[0]
+    qual_done = user_df[(user_df["phase"] == "qual") &
+                        (user_df["study_id"].astype(str).isin(qual_df["study_id"].astype(str)))].shape[0]
+    return quant_done, qual_done
+
+quant_done, qual_done = get_progress(user, st.session_state.quant_df, st.session_state.qual_df)
+
+# Decide which phase to start/resume
 if quant_done >= len(st.session_state.quant_df):
     st.session_state.phase = "qual"
-    st.session_state.current_index = qual_done
+    st.session_state.current_index = get_next_unseen_index(st.session_state.qual_df, done_ids)
 else:
     st.session_state.phase = "quant"
-    st.session_state.current_index = quant_done
+    st.session_state.current_index = get_next_unseen_index(st.session_state.quant_df, done_ids)
 
 quant_df = st.session_state.quant_df
 qual_df = st.session_state.qual_df
@@ -177,6 +206,7 @@ try:
         st.sidebar.write(f"**Total annotations (all users):** {df_all.shape[0]}")
 except Exception as e:
     st.sidebar.error(f"Progress tracker failed: {e}")
+
 
 page = st.sidebar.radio("📂 Navigation", pages)
 
