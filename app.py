@@ -165,7 +165,7 @@ st.session_state.qual_df_filter = st.session_state.qual_df[
 ].reset_index(drop=True)
 
 quant_df = st.session_state.quant_df_filter
-st.write(f"Total quantitative reports: {quant_df.shape[0]}")
+# st.write(f"Total quantitative reports: {quant_df.shape[0]}")
 qual_df = st.session_state.qual_df_filter
 
 # Decide phase
@@ -206,7 +206,7 @@ def row_safe(df, i):
 if page == "Annotate":
     if phase == "quant":
         total_quant = len(quant_df)
-        st.write(f"Total quantitative reports remaining: {total_quant}")
+        # st.write(f"Total quantitative reports remaining: {total_quant}")
         row = row_safe(quant_df, idx)
         if row is None:
             st.info("Quantitative phase complete. Moving to qualitative...")
