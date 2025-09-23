@@ -130,12 +130,12 @@ if "prepared" not in st.session_state:
     st.session_state.quant_df = quant_df
     st.session_state.qual_df = qual_df.reset_index(drop=True)
     st.session_state.prepared = True
-st.write("df1 rows:", len(df1))
-st.write("df2 rows:", len(df2))
+    st.write("df1 rows:", len(df1))
+    st.write("df2 rows:", len(df2))
 
-st.write("Qual rows:", len(qual_df))
-st.write("Quant rows:", len(quant_df))
-st.write("Total (qual + quant):", len(qual_df) + len(quant_df))
+    st.write("Qual rows:", len(qual_df))
+    st.write("Quant rows:", len(quant_df))
+    st.write("Total (qual + quant):", len(qual_df) + len(quant_df))
 
 # === Resume progress ===
 user = st.session_state.username
