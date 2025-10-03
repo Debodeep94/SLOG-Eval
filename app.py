@@ -49,7 +49,7 @@ def append_to_gsheet(worksheet_name, row_dict):
     values = [clean_value(row_dict.get(h, "")) for h in headers]
     ws.append_row(values)
 
-@st.cache_data(ttl=2)  # cache reads to reduce API quota
+@st.cache_data(ttl=3)  # cache reads to reduce API quota
 def load_all_from_gsheet(worksheet_name):
     sh = connect_gsheet()
     ws = sh.worksheet(worksheet_name)
@@ -263,10 +263,11 @@ if page == "Annotate":
             st.text_area("Report Text", report_text, height=220)
 
             q1 = st.text_input("Q1. Confidence (1-10)", key=f"q1_{idx}")
-            q2 = st.text_area(f"Q2. Difficult symptoms? Options: {symptom_list_str}", key=f"q2_{idx}")
+            q2 = st.text_area(f"Q2. Difficult symptoms? Options: {symptom_list_str}", key=f"q2_{idx}") # add why
             q3 = st.text_area("Q3. Additional info needed? (Yes/No)", key=f"q3_{idx}")
             q4 = st.text_area("Q4. Rationale for key decisions", key=f"q4_{idx}")
             q5 = st.text_area("Q5. Inconsistencies between image and text?", key=f"q5_{idx}")
+            # add a question about the quality of the text before the inconsistency question with bit of explanation from the doctor
 
             if st.button("Save and Next (Qual)"):
                 result = {
