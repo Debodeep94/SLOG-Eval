@@ -46,7 +46,7 @@ def append_to_gsheet(worksheet_name, row_dict):
     values = [clean_value(row_dict.get(h, "")) for h in headers]
     ws.append_row(values)
 
-@st.cache_data(ttl=1)
+@st.cache_data(ttl=2)
 def load_all_from_gsheet(worksheet_name):
     sh = connect_gsheet()
     ws = sh.worksheet(worksheet_name)
