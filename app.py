@@ -157,19 +157,6 @@ if st.session_state.username == "admin":
     st.sidebar.warning("⚠️ Admin mode: You can review all annotations.")
     pages.append("Review Results")
 
-# === ✅ Restored Sidebar Progress Tracker ===
-try:
-    st.sidebar.markdown("### 📊 Progress Tracker")
-    st.sidebar.write(f"**Quantitative:** {len(quant_done)}/{QUANT_TARGET_REPORTS}")
-    st.sidebar.write(f"**Qualitative:** {len(qual_done)}/{NUM_QUAL_STUDY_IDS*2}")
-
-    if st.session_state.username == "admin":
-        df_all = load_all_from_gsheet("Annotations")
-        st.sidebar.write("---")
-        st.sidebar.write(f"**Total annotations (all users):** {df_all.shape[0]}")
-except Exception as e:
-    st.sidebar.error(f"Progress tracker failed: {e}")
-
 page = st.sidebar.radio("📂 Navigation", pages)
 
 # === Helpers ===
