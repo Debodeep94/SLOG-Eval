@@ -138,8 +138,13 @@ st.session_state.qual_df_filter = st.session_state.qual_df[
 quant_df = st.session_state.quant_df_filter
 qual_df = st.session_state.qual_df_filter
 
-st.session_state.phase = "quant" if not quant_df.empty else "qual"
-st.session_state.current_index = st.session_state.get("current_index", 0)
+# === FIXED: Maintain session state properly ===
+if "phase" not in st.session_state:
+    st.session_state.phase = "quant" if not quant_df.empty else "qual"
+
+if "current_index" not in st.session_state:
+    st.session_state.current_index = 0
+
 phase = st.session_state.phase
 idx = st.session_state.current_index
 
@@ -224,7 +229,7 @@ if page == "Annotate":
                     st.session_state.current_index -= 1
                     st.rerun()
                 else:
-                    st.warning("You're at the first report!")
+                    st.warning("You're already at the first report!")
 
     elif phase == "qual":
         total_qual = len(qual_df)
@@ -277,7 +282,7 @@ if page == "Annotate":
                         st.session_state.current_index -= 1
                         st.rerun()
                     else:
-                        st.warning("You're at the first case!")
+                        st.warning("You're already at the first case!")
 
 # === Review Results page ===
 elif page == "Review Results":
