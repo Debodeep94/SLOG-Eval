@@ -57,15 +57,31 @@ def load_all_from_gsheet(worksheet_name):
         return pd.DataFrame()
     return pd.DataFrame(data)
 
+# ✅ NEW: Combined progress tracking for both sheets
 def get_progress_from_gsheet(user):
-    df = load_all_from_gsheet("Annotations")
-    if df.empty:
-        return set(), set()
-    user_df = df[df["annotator"] == user]
-    quant_done = set(user_df[user_df["phase"] == "quant"]["study_id"].astype(str) 
-                     + "__" + user_df[user_df["phase"] == "quant"]["source_label"])
-    qual_done = set(user_df[user_df["phase"] == "qual"]["study_id"].astype(str) 
-                    + "__" + user_df[user_df["phase"] == "qual"]["source_label"])
+    quant_done, qual_done = set(), set()
+
+    # Load Quantitative progress
+    df_quant = load_all_from_gsheet("Annotations")
+    if not df_quant.empty:
+        user_quant = df_quant[df_quant["annotator"] == user]
+        quant_done = set(
+            user_quant[user_quant["phase"] == "quant"]["study_id"].astype(str)
+            + "__" + user_quant[user_quant["phase"] == "quant"]["source_label"]
+        )
+
+    # Load Qualitative progress
+    try:
+        df_qual = load_all_from_gsheet("Qualitative_Annotations")
+        if not df_qual.empty:
+            user_qual = df_qual[df_qual["annotator"] == user]
+            qual_done = set(
+                user_qual[user_qual["phase"] == "qual"]["study_id"].astype(str)
+                + "__" + user_qual[user_qual["phase"] == "qual"]["source_label"]
+            )
+    except Exception:
+        pass
+
     return quant_done, qual_done
 
 # === Credentials ===
@@ -155,8 +171,9 @@ if st.session_state.username == "admin":
 
 try:
     st.sidebar.markdown("### 📊 Progress")
+    total_qual_items = len(st.session_state.qual_df)  # ✅ always shows 10 if 5 unique IDs × 2
     st.sidebar.write(f"**Quantitative:** {len(quant_done)}/{QUANT_TARGET_REPORTS}")
-    st.sidebar.write(f"**Qualitative:** {len(qual_done)}/{NUM_QUAL_STUDY_IDS*2}")
+    st.sidebar.write(f"**Qualitative:** {len(qual_done)}/{total_qual_items}")
 
     if st.session_state.username == "admin":
         df_all = load_all_from_gsheet("Annotations")
@@ -175,7 +192,6 @@ def row_safe(df, i):
 # === Annotation page ===
 if page == "Annotate":
     if phase == "quant":
-        # same as before (unchanged)
         total_quant = len(quant_df)
         row = row_safe(quant_df, idx)
         if row is None:
@@ -214,7 +230,7 @@ if page == "Annotate":
             st.rerun()
 
     elif phase == "qual":
-        total_qual = len(qual_df)
+        total_qual_items = len(st.session_state.qual_df)
         row = row_safe(qual_df, idx)
 
         if row is None:
@@ -224,16 +240,15 @@ if page == "Annotate":
             study_id = row["study_id"]
             uid = row["uid"]
             report_text = row["reports_preds"]
-            img_path = row["paths"]  # ✅ image path from CSV
+            img_path = row["paths"]
 
             # Start timer
             if "qual_start_time" not in st.session_state:
                 st.session_state.qual_start_time = time.time()
 
-            st.header(f"Qualitative — Case {idx+1} of {total_qual}")
+            st.header(f"Qualitative — Case {idx+1} of {total_qual_items}")
             st.subheader(f"Patient ID: {uid}")
 
-            # ✅ Display image from paths column
             if os.path.exists(img_path):
                 st.image(img_path, caption=f"Study Image: {study_id}", use_container_width=True)
             else:
@@ -241,7 +256,6 @@ if page == "Annotate":
 
             st.text_area("Report Text", report_text, height=220)
 
-            # Questions
             q1 = st.text_input("Q1. Confidence (1-10)", key=f"qual_{uid}_q1")
             q2 = st.text_area(f"Q2. Difficult symptoms? Options: {symptom_list_str}", key=f"qual_{uid}_q2")
             q3 = st.text_area("Q3. Additional info needed? (Yes/No)", key=f"qual_{uid}_q3")
@@ -268,11 +282,24 @@ if page == "Annotate":
                     "time_total_seconds": total_time
                 }
 
-                # ✅ Save to a separate worksheet
                 append_to_gsheet("Qualitative_Annotations", result)
-
                 st.success(f"✅ Saved qualitative annotation. Total time: {total_time}s")
 
                 st.session_state.qual_start_time = time.time()
                 st.session_state.current_index += 1
                 st.rerun()
+
+# === Review Results page ===
+elif page == "Review Results":
+    st.header("📊 Review & Download Survey Results")
+    df = load_all_from_gsheet("Annotations")
+    if df.empty:
+        st.info("No annotations found yet.")
+    else:
+        st.dataframe(df)
+        st.download_button(
+            "⬇️ Download all annotations as CSV",
+            df.to_csv(index=False).encode("utf-8"),
+            file_name="survey_results.csv",
+            mime="text/csv"
+        )
