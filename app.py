@@ -118,6 +118,11 @@ df2 = pd.read_csv("selected_samples00.csv")
 df2["source_file"] = "selected_samples00.csv"
 df2["source_label"] = "df2"
 
+# ✅ Ensure both have same columns
+for df in [df1, df2]:
+    if "paths" not in df.columns:
+        df["paths"] = ""
+
 NUM_QUAL_STUDY_IDS = 5
 QUANT_TARGET_REPORTS = df1.shape[0] + df2.shape[0]
 
