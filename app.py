@@ -254,7 +254,7 @@ if page == "Annotate":
             uid = row["uid"]
             report_text = row["reports_preds"]
             img_path = row.get("paths", None)
-            st.write(f"**Source File:** {row['image paths']}")
+            # st.write(f"**Source File:** {row['image paths']}")
 
             # Timer start
             if "qual_start_time" not in st.session_state:
