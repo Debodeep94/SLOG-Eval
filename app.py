@@ -239,12 +239,12 @@ if page == "Annotate":
             st.rerun()
 
     elif phase == "qual":
+    # --- Setup ---
         total_qual_items = len(st.session_state.qual_df)
-        st.write("### Current Qualitative Data (for debugging)")
-        st.dataframe(qual_df)
+        qual_df = st.session_state.qual_df
         row = row_safe(qual_df, idx)
-        st.warning("⚠️ You are now in the qualitative phase.")
-        st.warning(f"{qual_df}")
+
+        st.sidebar.write(f"**Qualitative:** {len(qual_done)}/{total_qual_items}")
 
         if row is None:
             st.header("Phase: Qualitative")
@@ -254,9 +254,8 @@ if page == "Annotate":
             uid = row["uid"]
             report_text = row["reports_preds"]
             img_path = row.get("paths", None)
-            # st.write(f"**Source File:** {row['image paths']}")
 
-            # Timer start
+            # Start timer
             if "qual_start_time" not in st.session_state:
                 st.session_state.qual_start_time = time.time()
 
@@ -285,6 +284,7 @@ if page == "Annotate":
                     "phase": "qual",
                     "qual_case_number": idx + 1,
                     "study_id": study_id,
+                    "uid": uid,
                     "report_text": report_text,
                     "image_path": img_path,
                     "source_file": row["source_file"],
@@ -304,18 +304,3 @@ if page == "Annotate":
                 st.session_state.qual_start_time = time.time()
                 st.session_state.current_index += 1
                 st.rerun()
-
-# === Review Results page ===
-elif page == "Review Results":
-    st.header("📊 Review & Download Survey Results")
-    df = load_all_from_gsheet("Annotations")
-    if df.empty:
-        st.info("No annotations found yet.")
-    else:
-        st.dataframe(df)
-        st.download_button(
-            "⬇️ Download all annotations as CSV",
-            df.to_csv(index=False).encode("utf-8"),
-            file_name="survey_results.csv",
-            mime="text/csv"
-        )
