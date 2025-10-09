@@ -292,10 +292,11 @@ if page == "Annotate":
                     "source_label": row["source_label"],
                     "annotator": user,
                     "q1_confidence_1_10": q1,
-                    "q2_challenges": q2,
-                    "q3_additional_info": q3,
-                    "q4_rationale": q4,
-                    "q5_inconsistencies": q5,
+                    "q2 justification_for_q1": q2,
+                    "q2_challenges": q3,
+                    "q3_additional_info": q4,
+                    "q4_rationale": q5,
+                    "q5_inconsistencies": q6,
                     "time_total_seconds": total_time
                 }
 
