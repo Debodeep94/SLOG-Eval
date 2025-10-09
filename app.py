@@ -241,6 +241,8 @@ if page == "Annotate":
     elif phase == "qual":
         total_qual_items = len(st.session_state.qual_df)
         row = row_safe(qual_df, idx)
+        st.warning("⚠️ You are now in the qualitative phase.")
+        st.warning(f"{qual_df}")
 
         if row is None:
             st.header("Phase: Qualitative")
