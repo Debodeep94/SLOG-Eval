@@ -57,11 +57,11 @@ def load_all_from_gsheet(worksheet_name):
         return pd.DataFrame()
     return pd.DataFrame(data)
 
-# ✅ NEW: Combined progress tracking for both sheets
+# ✅ Combined progress tracking (Quant + Qual)
 def get_progress_from_gsheet(user):
     quant_done, qual_done = set(), set()
 
-    # Load Quantitative progress
+    # Quantitative
     df_quant = load_all_from_gsheet("Annotations")
     if not df_quant.empty:
         user_quant = df_quant[df_quant["annotator"] == user]
@@ -70,7 +70,7 @@ def get_progress_from_gsheet(user):
             + "__" + user_quant[user_quant["phase"] == "quant"]["source_label"]
         )
 
-    # Load Qualitative progress
+    # Qualitative
     try:
         df_qual = load_all_from_gsheet("Qualitative_Annotations")
         if not df_qual.empty:
@@ -171,7 +171,7 @@ if st.session_state.username == "admin":
 
 try:
     st.sidebar.markdown("### 📊 Progress")
-    total_qual_items = len(st.session_state.qual_df)  # ✅ always shows 10 if 5 unique IDs × 2
+    total_qual_items = len(st.session_state.qual_df)
     st.sidebar.write(f"**Quantitative:** {len(quant_done)}/{QUANT_TARGET_REPORTS}")
     st.sidebar.write(f"**Qualitative:** {len(qual_done)}/{total_qual_items}")
 
@@ -199,11 +199,14 @@ if page == "Annotate":
             st.session_state.phase = "qual"
             st.session_state.current_index = 0
             st.rerun()
+
         study_id = row["study_id"]
         report_text = row["reports_preds"]
+
         st.header(f"Patient Report {len(quant_done)+1} of {QUANT_TARGET_REPORTS} - ID: {study_id}")
         st.text_area("Report Text", report_text, height=220)
         st.subheader("Symptom Evaluation")
+
         scores = {}
         for symptom in SYMPTOMS:
             selected = st.radio(
@@ -213,6 +216,7 @@ if page == "Annotate":
                 key=f"quant_{study_id}_{symptom}"
             )
             scores[symptom] = np.nan if selected == '' else selected
+
         if st.button("Save and Next (Quant)", key=f"save_next_quant_{study_id}"):
             result = {
                 "phase": "quant",
@@ -240,22 +244,24 @@ if page == "Annotate":
             study_id = row["study_id"]
             uid = row["uid"]
             report_text = row["reports_preds"]
-            img_path = row["paths"]
+            img_path = row.get("paths", None)
 
-            # Start timer
+            # Timer start
             if "qual_start_time" not in st.session_state:
                 st.session_state.qual_start_time = time.time()
 
             st.header(f"Qualitative — Case {idx+1} of {total_qual_items}")
             st.subheader(f"Patient ID: {uid}")
 
-            if os.path.exists(img_path):
+            # ✅ Safe image display
+            if isinstance(img_path, str) and os.path.exists(img_path):
                 st.image(img_path, caption=f"Study Image: {study_id}", use_container_width=True)
             else:
-                st.warning(f"⚠️ Image file not found: {img_path}")
+                st.warning(f"⚠️ Image not available or invalid path: {img_path}")
 
             st.text_area("Report Text", report_text, height=220)
 
+            # Questions
             q1 = st.text_input("Q1. Confidence (1-10)", key=f"qual_{uid}_q1")
             q2 = st.text_area(f"Q2. Difficult symptoms? Options: {symptom_list_str}", key=f"qual_{uid}_q2")
             q3 = st.text_area("Q3. Additional info needed? (Yes/No)", key=f"qual_{uid}_q3")
