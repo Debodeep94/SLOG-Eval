@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import os
+import time
 from typing import List
 import gspread
 from google.oauth2.service_account import Credentials
@@ -66,7 +68,7 @@ def get_progress_from_gsheet(user):
                     + "__" + user_df[user_df["phase"] == "qual"]["source_label"])
     return quant_done, qual_done
 
-# === Credentials from secrets.toml ===
+# === Credentials ===
 USERS = st.secrets["credentials"]
 
 # === Session state defaults ===
@@ -139,11 +141,12 @@ quant_df = st.session_state.quant_df_filter
 qual_df = st.session_state.qual_df_filter
 
 st.session_state.phase = "quant" if not quant_df.empty else "qual"
-st.session_state.current_index = 0
+if "current_index" not in st.session_state:
+    st.session_state.current_index = 0
 phase = st.session_state.phase
 idx = st.session_state.current_index
 
-# === Sidebar & nav ===
+# === Sidebar ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
 pages = ["Annotate"]
 if st.session_state.username == "admin":
@@ -172,33 +175,28 @@ def row_safe(df, i):
 # === Annotation page ===
 if page == "Annotate":
     if phase == "quant":
+        # same as before (unchanged)
         total_quant = len(quant_df)
         row = row_safe(quant_df, idx)
-
         if row is None:
             st.info("✅ Quantitative phase complete. Moving to qualitative...")
             st.session_state.phase = "qual"
             st.session_state.current_index = 0
             st.rerun()
-
         study_id = row["study_id"]
         report_text = row["reports_preds"]
-
         st.header(f"Patient Report {len(quant_done)+1} of {QUANT_TARGET_REPORTS} - ID: {study_id}")
         st.text_area("Report Text", report_text, height=220)
-
         st.subheader("Symptom Evaluation")
         scores = {}
-
         for symptom in SYMPTOMS:
             selected = st.radio(
                 label=symptom,
                 options=['Yes', 'No', 'May be'],
                 horizontal=True,
-                key=f"quant_{study_id}_{symptom}"  # stable key
+                key=f"quant_{study_id}_{symptom}"
             )
             scores[symptom] = np.nan if selected == '' else selected
-
         if st.button("Save and Next (Quant)", key=f"save_next_quant_{study_id}"):
             result = {
                 "phase": "quant",
@@ -212,7 +210,6 @@ if page == "Annotate":
             }
             append_to_gsheet("Annotations", result)
             st.success("✅ Saved quantitative annotation.")
-
             st.session_state.current_index += 1
             st.rerun()
 
@@ -227,11 +224,24 @@ if page == "Annotate":
             study_id = row["study_id"]
             uid = row["uid"]
             report_text = row["reports_preds"]
+            img_path = row["paths"]  # ✅ use image path directly
+
+            # start timer
+            if "qual_start_time" not in st.session_state:
+                st.session_state.qual_start_time = time.time()
 
             st.header(f"Qualitative — Case {idx+1} of {total_qual}")
             st.subheader(f"Patient ID: {uid}")
+
+            # ✅ show image from paths column
+            if os.path.exists(img_path):
+                st.image(img_path, caption=f"Study Image: {study_id}", use_container_width=True)
+            else:
+                st.warning(f"⚠️ Image file not found: {img_path}")
+
             st.text_area("Report Text", report_text, height=220)
 
+            # questions
             q1 = st.text_input("Q1. Confidence (1-10)", key=f"qual_{uid}_q1")
             q2 = st.text_area(f"Q2. Difficult symptoms? Options: {symptom_list_str}", key=f"qual_{uid}_q2")
             q3 = st.text_area("Q3. Additional info needed? (Yes/No)", key=f"qual_{uid}_q3")
@@ -239,11 +249,14 @@ if page == "Annotate":
             q5 = st.text_area("Q5. Inconsistencies between image and text?", key=f"qual_{uid}_q5")
 
             if st.button("Save and Next (Qual)", key=f"save_next_qual_{uid}"):
+                total_time = round(time.time() - st.session_state.qual_start_time, 2)
+
                 result = {
                     "phase": "qual",
                     "qual_case_number": idx+1,
                     "study_id": study_id,
                     "report_text": report_text,
+                    "image_path": img_path,
                     "source_file": row["source_file"],
                     "source_label": row["source_label"],
                     "annotator": user,
@@ -252,10 +265,13 @@ if page == "Annotate":
                     "q3_additional_info": q3,
                     "q4_rationale": q4,
                     "q5_inconsistencies": q5,
+                    "time_total_seconds": total_time
                 }
-                append_to_gsheet("Annotations", result)
-                st.success("✅ Saved qualitative annotation.")
 
+                append_to_gsheet("Annotations", result)
+                st.success(f"✅ Saved qualitative annotation. Total time: {total_time}s")
+
+                st.session_state.qual_start_time = time.time()
                 st.session_state.current_index += 1
                 st.rerun()
 
