@@ -244,7 +244,7 @@ if page == "Annotate":
         qual_df = st.session_state.qual_df
         row = row_safe(qual_df, idx)
 
-        st.sidebar.write(f"**Qualitative:** {len(qual_done)}/{total_qual_items}")
+        st.sidebar.write(f"**Qualitative:** {len(qual_done)+1}/{total_qual_items}")
 
         if row is None:
             st.header("Phase: Qualitative")
@@ -271,11 +271,12 @@ if page == "Annotate":
             st.text_area("Report Text", report_text, height=220)
 
             # Questions
-            q1 = st.text_input("Q1. Confidence (1-10)", key=f"qual_{uid}_q1")
-            q2 = st.text_area(f"Q2. Difficult symptoms? Options: {symptom_list_str}", key=f"qual_{uid}_q2")
-            q3 = st.text_area("Q3. Additional info needed? (Yes/No)", key=f"qual_{uid}_q3")
-            q4 = st.text_area("Q4. Rationale for key decisions", key=f"qual_{uid}_q4")
-            q5 = st.text_area("Q5. Inconsistencies between image and text?", key=f"qual_{uid}_q5")
+            q1 = st.text_input("Q1. How confident were you while completing the annotations? Rate between (1-10). 1 - very low and 10 - very high. ", key=f"qual_{uid}_q1")
+            q2 = st.text_input("Q2. Justify your rating in Q1")
+            q3 = st.text_area(f"Q3. Which symptoms were hard to asess? Options: {symptom_list_str}", key=f"qual_{uid}_q2. Please justify in few words.")
+            q4 = st.text_area("Q4. Additional info needed? (Yes/No)", key=f"qual_{uid}_q3")
+            q5 = st.text_area("Q5. Rationale for key decisions", key=f"qual_{uid}_q4")
+            q6 = st.text_area("Q6. Is there any inconsistencies between image and text?", key=f"qual_{uid}_q5")
 
             if st.button("Save and Next (Qual)", key=f"save_next_qual_{uid}"):
                 total_time = round(time.time() - st.session_state.qual_start_time, 2)
