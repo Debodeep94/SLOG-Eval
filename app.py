@@ -177,7 +177,7 @@ if st.session_state.username == "admin":
 try:
     st.sidebar.markdown("### 📊 Progress")
     total_qual_items = len(st.session_state.qual_df)
-    st.sidebar.write(f"**Quantitative:** {len(quant_done)+1}/{QUANT_TARGET_REPORTS}")
+    st.sidebar.write(f"**Quantitative:** {len(quant_done)}/{QUANT_TARGET_REPORTS}")
     # st.sidebar.write(f"**Qualitative:** {len(qual_done)}/{total_qual_items}")
 
     if st.session_state.username == "admin":
