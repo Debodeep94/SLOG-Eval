@@ -161,11 +161,23 @@ st.session_state.qual_df_filter = st.session_state.qual_df[
 quant_df = st.session_state.quant_df_filter
 qual_df = st.session_state.qual_df_filter
 
+# === Phase selection ===
 st.session_state.phase = "quant" if not quant_df.empty else "qual"
-if "current_index" not in st.session_state:
-    st.session_state.current_index = 0
 phase = st.session_state.phase
+
+# === Resume logic ===
+if "current_index" not in st.session_state:
+    if phase == "quant":
+        # Start from next unfinished quant report
+        unfinished = st.session_state.quant_df[~st.session_state.quant_df["uid"].isin(quant_done)]
+        st.session_state.current_index = 0 if unfinished.empty else unfinished.index[0]
+    else:
+        # Start from next unfinished qual case
+        unfinished = st.session_state.qual_df[~st.session_state.qual_df["uid"].isin(qual_done)]
+        st.session_state.current_index = 0 if unfinished.empty else unfinished.index[0]
+
 idx = st.session_state.current_index
+
 
 # === Sidebar ===
 st.sidebar.success(f"Logged in as {st.session_state.username}")
